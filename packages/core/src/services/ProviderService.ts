@@ -6,7 +6,7 @@ import type { CreateProviderInput, UpdateProviderInput } from "../domain/schemas
 import { PROVIDER_KINDS, type ProviderRecord } from "../domain/types";
 import { getDriver, PROVIDER_DRIVERS, type DriverContext, type ProviderDriver, type ProviderDriverInfo } from "../providers/drivers";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
-import { GRADIO_PRESETS, legacyProviders, upgradeLegacyGradio, type SeedRecord } from "../providers/seed";
+import { GRADIO_PRESETS, legacyProviders, MERGED_GRADIO_GROUPS, toConnectionsConfig, upgradeLegacyGradio, type SeedRecord } from "../providers/seed";
 import type { AnyProvider } from "../providers/types";
 import { newId, nowIso } from "../utils/text";
 
@@ -29,6 +29,8 @@ export class ProviderService {
     // Each step runs once per database, recorded in `meta`; append new steps, never rename old keys.
     this.once("providers_seeded", () => this.importLegacy(config));
     this.once("providers_gradio_v2", () => this.upgradeGradio(config.hfToken));
+    this.once("providers_gradio_connections_v3", () => this.mergeGradioConnections());
+    this.once("providers_gradio_preset_fix_v4", () => this.repairGradioPresets(config.hfToken));
     for (const record of this.repo.list()) this.sync(record);
   }
 
@@ -143,9 +145,43 @@ export class ProviderService {
         case "json":
           out[field.key] = value === undefined ? (previous[field.key] ?? {}) : ProviderService.parseJson(field.label, value);
           break;
+        case "connections":
+          out[field.key] = value === undefined ? (previous[field.key] ?? []) : ProviderService.parseConnections(value);
+          break;
       }
     }
     return out;
+  }
+
+  /** Validates an ordered Gradio connection list; params/valueMaps/meta may arrive as JSON text from the UI. */
+  private static parseConnections(value: unknown): Record<string, unknown>[] {
+    let list = value;
+    if (typeof value === "string") {
+      try {
+        list = JSON.parse(value || "[]");
+      } catch {
+        throw new InputError("Connections: invalid JSON");
+      }
+    }
+    if (!Array.isArray(list)) throw new InputError("Connections: must be a list");
+    return list.map((item, i) => {
+      const c = (item ?? {}) as Record<string, unknown>;
+      const n = `Connection ${i + 1}`;
+      const space = String(c.space ?? "").trim();
+      if (!space) throw new InputError(`${n}: space / URL is required`);
+      const optional = (key: string, label: string) => {
+        const parsed = c[key] === undefined || c[key] === "" ? {} : ProviderService.parseJson(`${n} ${label}`, c[key]);
+        return Object.keys(parsed).length ? { [key]: parsed } : {};
+      };
+      return {
+        space,
+        apiName: String(c.apiName ?? "").trim() || "/predict",
+        params: c.params === undefined || c.params === "" ? {} : ProviderService.parseJson(`${n} parameters`, c.params),
+        ...optional("valueMaps", "value maps"),
+        ...optional("meta", "extra settings"),
+        enabled: c.enabled !== false,
+      };
+    });
   }
 
   private static parseJson(label: string, value: unknown): Record<string, unknown> {
@@ -192,9 +228,70 @@ export class ProviderService {
       const upgraded = upgradeLegacyGradio(record);
       if (upgraded) this.repo.update(record.id, { type: upgraded.type, config: this.normalize(getDriver(upgraded.type), upgraded.config, {}), updatedAt: nowIso() });
     }
-    // HF Space ids (not URLs) get the existing Hugging Face token for better GPU quota.
-    const isSpaceId = (space: unknown) => typeof space === "string" && !/^https?:/.test(space);
-    GRADIO_PRESETS.forEach((r) => this.insertSeed(isSpaceId(r.config.space) ? { ...r, config: { ...r.config, hfToken } } : r));
+    // The existing Hugging Face token gives better GPU quota; GradioApi only sends it to Hugging Face hosts.
+    GRADIO_PRESETS.forEach((r) => this.insertSeed({ ...r, config: { ...r.config, hfToken } }));
+  }
+
+  /**
+   * Repairs preset providers migrated by an in-between build: connections the preset ships switched off
+   * are turned off again, and a missing HF token is filled in (GradioApi only sends it to Hugging Face).
+   */
+  private repairGradioPresets(hfToken: string): void {
+    for (const preset of GRADIO_PRESETS) {
+      const record = this.repo.findBySlug(preset.kind, preset.slug);
+      if (!record) continue;
+      const off = new Set(
+        (preset.config.connections as { space: string; apiName: string; enabled?: boolean }[]).filter((c) => c.enabled === false).map((c) => `${c.space} ${c.apiName}`),
+      );
+      const connections = ((record.config.connections ?? []) as Record<string, unknown>[]).map((c) =>
+        off.has(`${c.space} ${c.apiName}`) ? { ...c, enabled: false } : c,
+      );
+      this.repo.update(record.id, { config: { ...record.config, hfToken: record.config.hfToken || hfToken, connections }, updatedAt: nowIso() });
+    }
+  }
+
+  /**
+   * Gradio providers became ordered connection lists: converts single-endpoint rows, then folds the
+   * separate per-space preset rows into one provider each (stories using a folded id are repointed).
+   */
+  private mergeGradioConnections(): void {
+    for (const record of this.repo.list()) {
+      const converted = record.type.startsWith("gradio-") && toConnectionsConfig(record.config);
+      if (converted) this.repo.update(record.id, { config: this.normalize(getDriver(record.type), converted, {}), updatedAt: nowIso() });
+    }
+    for (const group of MERGED_GRADIO_GROUPS) {
+      const leader = this.repo.findBySlug(group.kind, group.leader);
+      const members = group.members.map((slug) => this.repo.findBySlug(group.kind, slug)).filter((m) => m !== null);
+      if (!leader || !members.length) continue;
+      const preset = GRADIO_PRESETS.find((p) => p.slug === group.leader)!;
+      // Connections the preset ships switched off (e.g. one that "succeeds" with a placeholder) stay off.
+      const presetOff = new Set(
+        (preset.config.connections as { space: string; apiName: string; enabled?: boolean }[]).filter((c) => c.enabled === false).map((c) => `${c.space} ${c.apiName}`),
+      );
+      const connections = [leader, ...members].flatMap((r) =>
+        ((r.config.connections ?? []) as Record<string, unknown>[]).map((c) => ({
+          ...c,
+          enabled: r.enabled && c.enabled !== false && !presetOff.has(`${c.space} ${c.apiName}`),
+        })),
+      );
+      const hfToken = [leader, ...members].map((r) => r.config.hfToken).find((t) => typeof t === "string" && t) ?? "";
+      this.repo.update(leader.id, {
+        label: preset.label,
+        enabled: true,
+        config: { ...leader.config, hfToken, timeoutSec: leader.config.timeoutSec ?? preset.config.timeoutSec, connections },
+        updatedAt: nowIso(),
+      });
+      for (const member of members) {
+        if (member.isDefault) this.repo.setDefault(leader.id);
+        this.db.sql
+          .query(
+            `UPDATE stories SET settings = json_set(settings, '$.providers.${group.kind}', $leader)
+             WHERE json_extract(settings, '$.providers.${group.kind}') = $member`,
+          )
+          .run({ leader: group.leader, member: member.slug });
+        this.repo.delete(member.id);
+      }
+    }
   }
 
   /** Inserts a seed row unless its id is taken (never overwrites the user's own provider). */

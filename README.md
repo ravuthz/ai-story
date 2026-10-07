@@ -64,29 +64,33 @@ Each provider is a row in the `providers` table: a **type** (driver), an **id** 
 | text  | `agy`    | Antigravity `agy --print` (+ `--json-schema`) |
 | text  | `omp`    | `omp --print --no-session` |
 | image | `codex`  | Local Codex CLI `image_generation` tool, sandboxed to a scratch folder |
-| image | `qwen`, `qwen-image-2-1`, `qwen-image-2-1-viggle`, `qwen-image-2-1-uncensored` | Qwen-Image spaces via Gradio |
+| image | `qwen`, `qwen-image-2-1` | Qwen-Image via Gradio; `qwen-image-2-1` falls back across 4 spaces |
 | image | `gemini` | Gemini image API (API key) |
 | audio | `edge`   | Edge neural TTS: `km-KH-SreymomNeural`, `km-KH-PisethNeural`, English voices |
 | audio | `gemini` | Gemini TTS |
 | video | `ffmpeg` | Local Ken Burns motion (zoom/pan) with fades, 30fps H.264 |
-| audio | `voxcpm`, `voxcpm2-appkh`, `voxcpm-appkh` | VoxCPM 2 TTS via Gradio |
+| audio | `voxcpm` | VoxCPM 2 TTS via Gradio, falls back across 3 servers |
 | video | `gradio` | Remote image-to-video Gradio app, muxed with narration |
 | any   | Gradio   | Any Gradio app (types `gradio-text`, `gradio-image`, `gradio-audio`, `gradio-video`; see below) |
 | any   | MCP      | Any MCP tool (types `mcp-image`, `mcp-audio`, `mcp-video`; see below) |
 
 ### Gradio providers (HF Space, remote URL or local app)
 
-Every kind can use any Gradio app. `space` is an HF Space id (`owner/name`), a remote URL, or a local server (`http://127.0.0.1:7860`); `apiName` is the endpoint; `params` are its named parameters with `{{placeholders}}`; `valueMaps` translates a placeholder's value into what that app expects:
+Every kind can use Gradio apps. A Gradio provider holds an ordered list of **connections**: the first enabled one is tried, and if it fails (error, busy space, timeout) the next one is used. Each connection has a `space` (an HF Space id `owner/name`, a remote URL, or a local server like `http://127.0.0.1:7860`), an `apiName`, named `params` with `{{placeholders}}`, and optional `valueMaps` that translate a placeholder's value into what that app expects. The HF token is only sent to Hugging Face hosts.
 
 ```json
 {
   "type": "gradio-image",
-  "slug": "qwen-uncensored",
+  "slug": "qwen-image-2-1",
   "config": {
-    "space": "arudradey/qwen-image-2.1-uncensored-gguf",
-    "apiName": "/generate",
-    "params": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}", "randomize_seed": true },
-    "valueMaps": { "aspectRatio": { "9:16": "Portrait · 9:16 (768x1344)", "16:9": "Landscape · 16:9 (1344x768)", "1:1": "Square · 1:1 (1024x1024)" } }
+    "timeoutSec": 300,
+    "connections": [
+      { "space": "hugging-apps/qwen-image-2-1", "apiName": "/generate",
+        "params": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}", "resolution": 1024 } },
+      { "space": "arudradey/qwen-image-2.1-uncensored-gguf", "apiName": "/generate",
+        "params": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}", "randomize_seed": true },
+        "valueMaps": { "aspectRatio": { "9:16": "Portrait · 9:16 (768x1344)", "16:9": "Landscape · 16:9 (1344x768)", "1:1": "Square · 1:1 (1024x1024)" } } }
+    ]
   }
 }
 ```

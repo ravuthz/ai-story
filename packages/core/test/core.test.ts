@@ -95,32 +95,65 @@ describe("provider configuration", () => {
 });
 
 describe("gradio providers", () => {
-  test("preset image and TTS spaces are added in the generic format", async () => {
+  test("preset providers hold their spaces as ordered connections", async () => {
     const records = await app.providerConfigs.list();
-    const slugs = records.map((r) => `${r.kind}:${r.slug}:${r.type}`);
-    expect(slugs).toEqual(
-      expect.arrayContaining([
-        "image:qwen:gradio-image",
-        "image:qwen-image-2-1:gradio-image",
-        "image:qwen-image-2-1-enhance:gradio-image",
-        "image:qwen-image-2-1-uncensored:gradio-image",
-        "image:qwen-image-2-1-viggle:gradio-image",
-        "audio:voxcpm:gradio-audio",
-        "audio:voxcpm2-appkh:gradio-audio",
-        "audio:voxcpm-appkh:gradio-audio",
-        "video:gradio:gradio-video",
-      ]),
-    );
-    const vox = records.find((r) => r.slug === "voxcpm")!;
-    expect(vox.config).toMatchObject({ space: "openbmb/VoxCPM-Demo", apiName: "/generate", params: { text_input: "{{text}}", reference_wav_path_input: null } });
+    const qwen = records.find((r) => r.kind === "image" && r.slug === "qwen-image-2-1")!;
+    const conns = qwen.config.connections as { space: string; enabled: boolean }[];
+    expect(conns.map((c) => c.space)).toEqual([
+      "hugging-apps/qwen-image-2-1",
+      "Qwen/Qwen-Image-2.1",
+      "arudradey/qwen-image-2.1-uncensored-gguf",
+      "Viggle/Qwen-Image-2.1-viggle-turbo",
+    ]);
+    expect(conns.map((c) => c.enabled)).toEqual([true, false, true, true]);
+    const vox = records.find((r) => r.kind === "audio" && r.slug === "voxcpm")!;
+    expect((vox.config.connections as { space: string }[]).map((c) => c.space)).toEqual([
+      "openbmb/VoxCPM-Demo",
+      "https://gradio-voxcpm2.appkh.online",
+      "https://gradio-voxcmp.appkh.online/",
+    ]);
+    expect(records.some((r) => r.slug === "voxcpm-appkh" || r.slug === "qwen-image-2-1-viggle")).toBe(false);
+    expect(records.find((r) => r.slug === "qwen")!.config.connections).toHaveLength(1);
   });
 
-  test("legacy rows convert to the generic format", async () => {
-    const { upgradeLegacyGradio } = await import("../src/providers/seed");
+  test("falls through every connection in order and reports each failure", async () => {
+    const created = app.providerConfigs.create({
+      type: "gradio-image",
+      slug: "fallback-test",
+      config: {
+        timeoutSec: 10,
+        connections: [
+          { space: "http://127.0.0.1:9/a", apiName: "/x", params: '{ "prompt": "{{prompt}}" }' },
+          { space: "http://127.0.0.1:9/skipped", apiName: "/x", params: {}, enabled: false },
+          { space: "http://127.0.0.1:9/b", apiName: "/x", params: {} },
+        ],
+      },
+    });
+    const error = await app.providers
+      .get("image", "fallback-test")
+      .generate({ prompt: "p", aspectRatio: "1:1", outPath: "/tmp/ai-story-test/x.png" })
+      .catch((e: Error) => e);
+    expect((error as Error).message).toMatch(/All Gradio connections failed:\n.*127\.0\.0\.1:9\/a.*\n.*127\.0\.0\.1:9\/b/s);
+    expect((error as Error).message).not.toContain("skipped");
+    app.providerConfigs.delete(created.id);
+  });
+
+  test("HF token only goes to Hugging Face hosts", async () => {
+    const { GradioApi } = await import("../src/providers/GradioApi");
+    expect(GradioApi.isHuggingFace("owner/space")).toBe(true);
+    expect(GradioApi.isHuggingFace("https://owner-space.hf.space")).toBe(true);
+    expect(GradioApi.isHuggingFace("https://gradio-voxcpm2.appkh.online")).toBe(false);
+    expect(GradioApi.isHuggingFace("http://127.0.0.1:7860")).toBe(false);
+  });
+
+  test("legacy rows convert to the connections format", async () => {
+    const { upgradeLegacyGradio, toConnectionsConfig } = await import("../src/providers/seed");
     expect(upgradeLegacyGradio({ type: "qwen-gradio", config: { url: "Qwen/Qwen-Image", endpoint: "/infer", hfToken: "t" } })).toEqual({
       type: "gradio-image",
-      config: { space: "Qwen/Qwen-Image", apiName: "/infer", hfToken: "t", params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", randomize_seed: true } },
+      config: { hfToken: "t", connections: [{ space: "Qwen/Qwen-Image", apiName: "/infer", params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", randomize_seed: true } }] },
     });
-    expect(upgradeLegacyGradio({ type: "gradio-video", config: { space: "x", apiName: "/a", params: {} } })).toBeNull();
+    expect(toConnectionsConfig({ space: "s", apiName: "/a", params: {}, hfToken: "t" })).toMatchObject({ hfToken: "t", connections: [{ space: "s", apiName: "/a" }] });
+    expect(toConnectionsConfig({ connections: [] })).toBeNull();
+    expect(toConnectionsConfig({ space: "", apiName: "/generate_video", params: {} })).toMatchObject({ connections: [] });
   });
 });

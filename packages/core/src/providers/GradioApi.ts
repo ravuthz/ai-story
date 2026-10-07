@@ -6,8 +6,19 @@ type GradioFile = { url?: string; path?: string } | string;
 /** Shared Gradio access: lazy connection reuse and file-result downloading. */
 export class GradioApi {
   private client?: Promise<Client>;
+  private readonly token?: string;
 
-  constructor(private readonly url: string, private readonly token?: string) {}
+  constructor(private readonly url: string, token?: string) {
+    // The HF token is only ever sent to Hugging Face, never to third-party Gradio hosts.
+    this.token = token && GradioApi.isHuggingFace(url) ? token : undefined;
+  }
+
+  /** An HF Space id ("owner/name") or a URL on hf.space / huggingface.co. */
+  static isHuggingFace(url: string): boolean {
+    if (!/^https?:\/\//.test(url)) return true;
+    const host = new URL(url).hostname;
+    return host.endsWith(".hf.space") || host === "huggingface.co" || host.endsWith(".huggingface.co");
+  }
 
   get configured(): boolean {
     return !!this.url;
@@ -15,6 +26,8 @@ export class GradioApi {
 
   async predict(endpoint: string, params: Record<string, unknown>): Promise<unknown[]> {
     this.client ??= Client.connect(this.url, this.token ? { token: this.token as `hf_${string}` } : {});
+    // A failed connect must not stay cached, or the space could never be retried.
+    this.client.catch(() => (this.client = undefined));
     const result = await (await this.client).predict(endpoint, params);
     return result.data as unknown[];
   }

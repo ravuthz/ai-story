@@ -5,7 +5,7 @@ import { EdgeTtsProvider } from "./audio/EdgeTtsProvider";
 import { GeminiTtsProvider } from "./audio/GeminiTtsProvider";
 import { AGENT_CLASSES } from "./cli/agents";
 import { GeminiApi } from "./GeminiApi";
-import { GRADIO_PLACEHOLDERS, GradioAudioProvider, GradioImageProvider, GradioTextProvider, GradioVideoProvider } from "./gradio/GradioProviders";
+import { GRADIO_PLACEHOLDERS, GradioAudioProvider, type GradioConnection, GradioImageProvider, GradioTextProvider, GradioVideoProvider } from "./gradio/GradioProviders";
 import { CodexImageProvider } from "./image/CodexImageProvider";
 import { GeminiImageProvider } from "./image/GeminiImageProvider";
 import { createMcpProvider, type McpProviderConfig } from "./mcp/McpProviders";
@@ -16,8 +16,11 @@ import { FfmpegMotionVideoProvider } from "./video/FfmpegMotionVideoProvider";
 export interface DriverField {
   key: string;
   label: string;
-  /** text/secret: string · number · json: object (edited as JSON) · list: string[] (edited as ":"-separated text). */
-  type: "text" | "secret" | "number" | "json" | "list";
+  /**
+   * text/secret: string · number · json: object (edited as JSON) · list: string[] (edited as ":"-separated text)
+   * · connections: ordered GradioConnection[] (own editor).
+   */
+  type: "text" | "secret" | "number" | "json" | "list" | "connections";
   placeholder?: string;
   hint?: string;
   required?: boolean;
@@ -68,34 +71,22 @@ const gradioDriver = (kind: ProviderKind): ProviderDriver => ({
   label: `Gradio ${kind}`,
   description: `Any Gradio app that returns ${kind === "text" ? "text" : `a ${kind} file`}: an HF Space id, a remote URL or a local server.`,
   fields: [
-    { key: "space", label: "Gradio space / URL", type: "text", required: true, placeholder: "owner/space  ·  https://…  ·  http://127.0.0.1:7860" },
-    { key: "apiName", label: "API name", type: "text", required: true, placeholder: "/generate" },
-    HF_TOKEN,
     {
-      key: "params",
-      label: "Parameters",
-      type: "json",
+      key: "connections",
+      label: "Connections",
+      type: "connections",
       required: true,
-      placeholder: `{ "${kind === "audio" ? "text_input" : "prompt"}": "{{${kind === "audio" ? "text" : "prompt"}}}" }`,
-      hint: `Named endpoint parameters. Placeholders: ${GRADIO_PLACEHOLDERS[kind].map((p) => `{{${p}}}`).join(" ")}`,
+      hint: `Tried in order; if one fails the next is used. Placeholders: ${GRADIO_PLACEHOLDERS[kind].map((p) => `{{${p}}}`).join(" ")}`,
     },
-    {
-      key: "valueMaps",
-      label: "Value maps",
-      type: "json",
-      placeholder: '{ "aspectRatio": { "9:16": "Portrait · 9:16 (768x1344)" } }',
-      hint: "Optional: translate a placeholder's value into what this app expects",
-    },
+    { ...HF_TOKEN, hint: "Sent only to Hugging Face spaces" },
+    { key: "timeoutSec", label: "Timeout per connection (sec)", type: "number", placeholder: "300", hint: "Move on to the next connection after this long" },
     ...(kind === "video" ? [{ key: "maxDurationSec", label: "Max clip seconds", type: "number" as const, hint: "Optional; shorter clips are looped to the scene length" }] : []),
-    { key: "meta", label: "Extra settings", type: "json", hint: "Optional notes kept with the provider; not sent to the app" },
   ],
   create: (c) =>
     new GRADIO_CLASSES[kind]({
-      space: str(c, "space"),
-      apiName: str(c, "apiName", "/predict"),
+      connections: Array.isArray(c.connections) ? (c.connections as GradioConnection[]) : [],
       hfToken: str(c, "hfToken"),
-      params: obj(c, "params"),
-      valueMaps: obj(c, "valueMaps") as Record<string, Record<string, unknown>>,
+      timeoutSec: num(c, "timeoutSec"),
       maxDurationSec: num(c, "maxDurationSec"),
     }),
 });

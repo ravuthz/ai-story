@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { keys, useAction, useProviderDrivers } from "@/hooks/queries";
 import { api, type DriverField, type ProviderConfig, type ProviderKind } from "@/lib/api";
-import { SelectField, TextField } from "./fields";
+import { ConnectionsEditor, type ConnectionDraft } from "./ConnectionsEditor";
+import { Field, SelectField, TextField } from "./fields";
 import { FormDialog } from "./FormDialog";
 
 const INVALIDATE = [keys.providers, keys.providerConfigs];
@@ -13,6 +14,19 @@ const toText = (field: DriverField, value: unknown): string => {
   if (field.type === "json") return Object.keys(value as object).length ? JSON.stringify(value, null, 2) : "";
   return String(value);
 };
+
+const json = (v: unknown) => (typeof v === "string" ? v : v && typeof v === "object" && Object.keys(v).length ? JSON.stringify(v, null, 2) : "");
+
+/** Stored Gradio connections → editable drafts (JSON parts as text). */
+const toDrafts = (value: unknown): ConnectionDraft[] =>
+  (Array.isArray(value) ? value : []).map((c: Record<string, unknown>) => ({
+    space: String(c.space ?? ""),
+    apiName: String(c.apiName ?? ""),
+    enabled: c.enabled !== false,
+    params: json(c.params),
+    valueMaps: json(c.valueMaps),
+    meta: json(c.meta),
+  }));
 
 /** Adds a provider (pick a driver type) or edits an existing one; type and id are fixed after creation. */
 export function ProviderDialog({
@@ -34,6 +48,8 @@ export function ProviderDialog({
   const [label, setLabel] = useState(provider?.label ?? "");
   const [config, setConfig] = useState<Record<string, string>>({});
   const value = (field: DriverField) => config[field.key] ?? toText(field, provider?.config[field.key]);
+  const [connections, setConnections] = useState<ConnectionDraft[] | undefined>();
+  const connectionsValue = connections ?? toDrafts(provider?.config.connections);
 
   const close = () => onOpenChange(false);
   const create = useAction(api.createProvider, { success: "Provider added", invalidate: INVALIDATE });
@@ -41,7 +57,7 @@ export function ProviderDialog({
 
   const submit = () => {
     if (!driver) return;
-    const values = Object.fromEntries(driver.fields.map((f) => [f.key, value(f)]));
+    const values = Object.fromEntries(driver.fields.map((f) => [f.key, f.type === "connections" ? connectionsValue : value(f)]));
     if (provider) update.mutate({ id: provider.id, label, config: values }, { onSuccess: close });
     else create.mutate({ type: driver.type, slug: slug.trim(), label, config: values }, { onSuccess: close });
   };
@@ -56,7 +72,7 @@ export function ProviderDialog({
       pending={create.isPending || update.isPending}
       disabled={!driver || (!provider && !slug.trim())}
       onSubmit={submit}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+      className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
     >
       <div className="grid grid-cols-2 gap-3">
         {provider ? (
@@ -74,7 +90,16 @@ export function ProviderDialog({
         />
       </div>
       <TextField label="Label" value={label} onChange={setLabel} placeholder={driver?.label} />
-      {driver?.fields.map((field) => (
+      {driver?.fields.map((field) =>
+        field.type === "connections" ? (
+          <Field key={field.key} label={field.label} hint={field.hint}>
+            <ConnectionsEditor
+              value={connectionsValue}
+              onChange={setConnections}
+              paramsPlaceholder={driver.kind === "audio" ? '{ "text_input": "{{text}}" }' : '{ "prompt": "{{prompt}}" }'}
+            />
+          </Field>
+        ) : (
         <TextField
           key={field.key}
           label={field.required ? `${field.label} *` : field.label}
@@ -87,7 +112,8 @@ export function ProviderDialog({
           placeholder={field.placeholder}
           hint={field.type === "secret" && provider?.config[field.key] ? "Leave as is to keep the saved value" : field.hint}
         />
-      ))}
+        ),
+      )}
       {driver && !driver.fields.length && <p className="text-sm text-muted-foreground">This provider has no settings.</p>}
     </FormDialog>
   );

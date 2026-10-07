@@ -45,21 +45,19 @@ export function legacyProviders(config: AppConfig): { records: SeedRecord[]; def
 
 type LegacyGradio = { url?: unknown; endpoint?: unknown; hfToken?: unknown };
 
-/** The old fixed Qwen-Image call, expressed in the generic Gradio format. */
+/** The old fixed Qwen-Image call, expressed as a one-connection Gradio provider. */
 export const legacyQwenConfig = (c: LegacyGradio) => ({
-  space: c.url ?? "",
-  apiName: c.endpoint || "/infer",
   hfToken: c.hfToken ?? "",
-  params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", randomize_seed: true },
+  connections: c.url ? [{ space: c.url, apiName: c.endpoint || "/infer", params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", randomize_seed: true } }] : [],
 });
 
-/** The old fixed image-to-video call (Wan-style spaces), expressed in the generic Gradio format. */
+/** The old fixed image-to-video call (Wan-style spaces), expressed as a one-connection Gradio provider. */
 export const legacyVideoConfig = (c: LegacyGradio) => ({
-  space: c.url ?? "",
-  apiName: c.endpoint || "/generate_video",
   hfToken: c.hfToken ?? "",
-  params: { input_image: "{{imagePath}}", prompt: "{{prompt}}", duration_seconds: "{{durationSec}}" },
   maxDurationSec: 8,
+  connections: c.url
+    ? [{ space: c.url, apiName: c.endpoint || "/generate_video", params: { input_image: "{{imagePath}}", prompt: "{{prompt}}", duration_seconds: "{{durationSec}}" } }]
+    : [],
 });
 
 /** Converts rows written with the pre-generic Gradio drivers ("qwen-gradio", old "gradio-video" shape). */
@@ -67,6 +65,14 @@ export function upgradeLegacyGradio(record: Pick<ProviderRecord, "type" | "confi
   if (record.type === "qwen-gradio") return { type: "gradio-image", config: legacyQwenConfig(record.config) };
   if (record.type === "gradio-video" && "url" in record.config) return { type: "gradio-video", config: legacyVideoConfig(record.config) };
   return null;
+}
+
+/** A single-endpoint Gradio row ({ space, apiName, params, … }) as a one-connection list. */
+export function toConnectionsConfig(config: Record<string, unknown>, enabled = true): Record<string, unknown> | null {
+  if (!("space" in config)) return null;
+  const { space, apiName, params, valueMaps, meta, hfToken, ...rest } = config;
+  // An unconfigured row (blank space) becomes an empty list rather than an invalid connection.
+  return { ...rest, hfToken, connections: space ? [{ space, apiName, params, valueMaps, meta, enabled }] : [] };
 }
 
 const VOXCPM_PARAMS = {
@@ -81,72 +87,65 @@ const VOXCPM_PARAMS = {
 };
 // Settings from the original provider list that the /generate endpoint does not take; kept for reference.
 const VOXCPM_META = { min_speed: 0.5, max_speed: 4, sample_rate: 48000, inference_timesteps: 10 };
+const voxcpm = (space: string) => ({ space, apiName: "/generate", params: VOXCPM_PARAMS, meta: VOXCPM_META });
 
-const voxcpm = (slug: string, label: string, space: string): SeedRecord => ({
-  kind: "audio",
-  slug,
-  label,
-  type: "gradio-audio",
-  config: { space, apiName: "/generate", params: VOXCPM_PARAMS, meta: VOXCPM_META },
-});
-
-/** Gradio image and TTS spaces added to every install. */
+/** Gradio image and TTS providers added to every install; each tries its connections in order. */
 export const GRADIO_PRESETS: SeedRecord[] = [
   {
     kind: "image",
     slug: "qwen-image-2-1",
-    label: "Qwen-Image 2.1 (hugging-apps)",
+    label: "Qwen-Image 2.1",
     type: "gradio-image",
     config: {
-      space: "hugging-apps/qwen-image-2-1",
-      apiName: "/generate",
-      params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", seed: "{{seed}}", resolution: 1024 },
+      timeoutSec: 300,
+      connections: [
+        {
+          space: "hugging-apps/qwen-image-2-1",
+          apiName: "/generate",
+          params: { prompt: "{{prompt}}", aspect_ratio: "{{aspectRatio}}", seed: "{{seed}}", resolution: 1024 },
+        },
+        {
+          // Off: the space has no /generate_with_enhance; /prepare_request only returns a "Generating image..."
+          // placeholder (the real image needs a follow-up call with UI session state), and that "success" would stop the fallback.
+          space: "Qwen/Qwen-Image-2.1",
+          apiName: "/prepare_request",
+          enabled: false,
+          params: { original_prompt: "{{prompt}}", enable_extend: true, custom_size: false, quality: "speed", randomize_seed: true },
+          meta: { note: "Not usable: /prepare_request returns a placeholder image; generation needs a 2-step call with session state." },
+        },
+        {
+          space: "arudradey/qwen-image-2.1-uncensored-gguf",
+          apiName: "/generate",
+          params: { prompt: "{{prompt}}", mode: "Create an image", aspect_ratio: "{{aspectRatio}}", randomize_seed: true },
+          valueMaps: {
+            aspectRatio: { "1:1": "Square · 1:1 (1024x1024)", "16:9": "Landscape · 16:9 (1344x768)", "9:16": "Portrait · 9:16 (768x1344)" },
+          },
+        },
+        {
+          space: "Viggle/Qwen-Image-2.1-viggle-turbo",
+          apiName: "/generate",
+          params: { prompt: "{{prompt}}", size_label: "{{aspectRatio}}", randomize_seed: true },
+          valueMaps: {
+            aspectRatio: { "1:1": "1:1 · 1024×1024 (1024² area)", "16:9": "16:9 · 1376×768 (1024² area)", "9:16": "9:16 · 768×1376 (1024² area)" },
+          },
+        },
+      ],
     },
   },
   {
-    kind: "image",
-    slug: "qwen-image-2-1-enhance",
-    label: "Qwen-Image 2.1 + prompt enhance (official)",
-    type: "gradio-image",
-    // Disabled: the space has no /generate_with_enhance; /prepare_request only returns a "Generating image..."
-    // placeholder and the real image comes from a follow-up /generate_request that needs the UI's session state.
-    enabled: false,
+    kind: "audio",
+    slug: "voxcpm",
+    label: "VoxCPM 2",
+    type: "gradio-audio",
     config: {
-      space: "Qwen/Qwen-Image-2.1",
-      apiName: "/prepare_request",
-      params: { original_prompt: "{{prompt}}", enable_extend: true, custom_size: false, quality: "speed", randomize_seed: true },
-      meta: { note: "Not usable yet: /prepare_request returns a placeholder image; generation needs a 2-step call with session state." },
+      timeoutSec: 180,
+      connections: [voxcpm("openbmb/VoxCPM-Demo"), voxcpm("https://gradio-voxcpm2.appkh.online"), voxcpm("https://gradio-voxcmp.appkh.online/")],
     },
   },
-  {
-    kind: "image",
-    slug: "qwen-image-2-1-uncensored",
-    label: "Qwen-Image 2.1 uncensored GGUF",
-    type: "gradio-image",
-    config: {
-      space: "arudradey/qwen-image-2.1-uncensored-gguf",
-      apiName: "/generate",
-      params: { prompt: "{{prompt}}", mode: "Create an image", aspect_ratio: "{{aspectRatio}}", randomize_seed: true },
-      valueMaps: {
-        aspectRatio: { "1:1": "Square · 1:1 (1024x1024)", "16:9": "Landscape · 16:9 (1344x768)", "9:16": "Portrait · 9:16 (768x1344)" },
-      },
-    },
-  },
-  {
-    kind: "image",
-    slug: "qwen-image-2-1-viggle",
-    label: "Qwen-Image 2.1 Viggle turbo",
-    type: "gradio-image",
-    config: {
-      space: "Viggle/Qwen-Image-2.1-viggle-turbo",
-      apiName: "/generate",
-      params: { prompt: "{{prompt}}", size_label: "{{aspectRatio}}", randomize_seed: true },
-      valueMaps: {
-        aspectRatio: { "1:1": "1:1 · 1024×1024 (1024² area)", "16:9": "16:9 · 1376×768 (1024² area)", "9:16": "9:16 · 768×1376 (1024² area)" },
-      },
-    },
-  },
-  voxcpm("voxcpm", "VoxCPM 2 (openbmb demo)", "openbmb/VoxCPM-Demo"),
-  voxcpm("voxcpm2-appkh", "VoxCPM 2 (gradio-voxcpm2.appkh.online)", "https://gradio-voxcpm2.appkh.online"),
-  voxcpm("voxcpm-appkh", "VoxCPM 2 (gradio-voxcmp.appkh.online)", "https://gradio-voxcmp.appkh.online/"),
+];
+
+/** Separate per-space rows (from the first Gradio preset version) that now live as connections of one provider. */
+export const MERGED_GRADIO_GROUPS = [
+  { kind: "image" as const, leader: "qwen-image-2-1", members: ["qwen-image-2-1-enhance", "qwen-image-2-1-uncensored", "qwen-image-2-1-viggle"] },
+  { kind: "audio" as const, leader: "voxcpm", members: ["voxcpm2-appkh", "voxcpm-appkh"] },
 ];

@@ -24,7 +24,7 @@ export type ProviderKind = ProviderInfo["kind"];
 export interface DriverField {
   key: string;
   label: string;
-  type: "text" | "secret" | "number" | "json" | "list";
+  type: "text" | "secret" | "number" | "json" | "list" | "connections";
   placeholder?: string;
   hint?: string;
   required?: boolean;
