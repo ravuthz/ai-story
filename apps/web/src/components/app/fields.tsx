@@ -62,6 +62,7 @@ export function NumberField({
   max,
   step = 1,
   hint,
+  disabled,
 }: {
   label: string;
   value: number | undefined;
@@ -70,10 +71,11 @@ export function NumberField({
   max?: number;
   step?: number;
   hint?: string;
+  disabled?: boolean;
 }) {
   return (
     <Field label={label} hint={hint}>
-      <Input type="number" value={value ?? ""} min={min} max={max} step={step} onChange={(e) => onChange(Number(e.target.value))} />
+      <Input type="number" value={value ?? ""} min={min} max={max} step={step} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} />
     </Field>
   );
 }

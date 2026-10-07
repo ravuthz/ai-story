@@ -30,7 +30,7 @@ export function FormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={className}>
         <form
-          className="grid gap-4"
+          className="flex min-h-full flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             onSubmit();
@@ -41,7 +41,7 @@ export function FormDialog({
             {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
           {children}
-          <DialogFooter>
+          <DialogFooter className="mt-auto">
             <Button type="submit" disabled={pending || disabled}>
               {pending ? "Working…" : submitLabel}
             </Button>

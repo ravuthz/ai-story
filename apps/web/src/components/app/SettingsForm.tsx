@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useProviders, useVoices } from "@/hooks/queries";
 import type { ProviderInfo, SettingsInput } from "@/lib/api";
 import { NumberField, SelectField, TextField, type Option } from "./fields";
@@ -12,6 +14,32 @@ const ASPECTS: Option[] = [
   { value: "1:1", label: "1:1 · Square" },
 ];
 const KINDS = ["text", "image", "audio", "video"] as const;
+const DEFAULT_SCENE_SEC = 10;
+const STYLE_TAGS = [
+  "cinematic",
+  "highly detailed",
+  "dramatic lighting",
+  "photorealistic",
+  "anime",
+  "3D render",
+  "watercolor",
+  "oil painting",
+  "Pixar style",
+  "dark fantasy",
+];
+
+const splitTags = (style = "") => style.split(",").map((t) => t.trim()).filter(Boolean);
+/** Adds the tag to a comma-separated style string, or removes it if already present. */
+const toggleTag = (style: string | undefined, tag: string) => {
+  const tags = splitTags(style);
+  const has = tags.some((t) => t.toLowerCase() === tag.toLowerCase());
+  return (has ? tags.filter((t) => t.toLowerCase() !== tag.toLowerCase()) : [...tags, tag]).join(", ");
+};
+
+const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(n) || min));
+const MAX_SCENES = 60;
+const MIN_DURATION = 5;
+const MAX_DURATION = 3600;
 
 const providerOptions = (providers: ProviderInfo[] = [], kind: ProviderInfo["kind"]): Option[] =>
   providers
@@ -24,24 +52,41 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
   const { data: voices } = useVoices();
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
   const language = value.narrationLanguage ?? "km";
-  const perScene = value.durationSec && value.sceneCount ? (value.durationSec / value.sceneCount).toFixed(1) : "—";
+  // Every scene is `sceneSec` long, so Duration = Scenes × Sec / scene.
+  const [sceneSec, setSceneSec] = useState(DEFAULT_SCENE_SEC);
+  const totalFor = (scenes: number, sec: number) => clamp(scenes * sec, MIN_DURATION, MAX_DURATION);
+  const setScenes = (v: number) => {
+    const sceneCount = clamp(v, 1, MAX_SCENES);
+    onChange({ ...value, sceneCount, durationSec: totalFor(sceneCount, sceneSec) });
+  };
+  const setSec = (v: number) => {
+    const sec = clamp(v, 1, 600);
+    setSceneSec(sec);
+    onChange({ ...value, durationSec: totalFor(value.sceneCount ?? 1, sec) });
+  };
 
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <NumberField label="Scenes" min={1} max={60} value={value.sceneCount} onChange={(v) => set("sceneCount", v)} />
-        <NumberField
-          label="Duration (sec)"
-          min={5}
-          max={3600}
-          value={value.durationSec}
-          onChange={(v) => set("durationSec", v)}
-          hint={`≈ ${perScene}s / scene`}
-        />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <NumberField label="Scenes" min={1} max={MAX_SCENES} value={value.sceneCount} onChange={setScenes} />
+        <NumberField label="Sec / scene" min={1} max={600} value={sceneSec} onChange={setSec} />
+        <NumberField label="Duration (sec)" value={value.durationSec} onChange={() => {}} disabled />
         <SelectField label="Narration" value={language} options={LANGUAGES} onChange={(v) => onChange({ ...value, narrationLanguage: v as "km" | "en", voice: undefined })} />
         <SelectField label="Aspect ratio" value={value.aspectRatio ?? "9:16"} options={ASPECTS} onChange={(v) => set("aspectRatio", v as SettingsInput["aspectRatio"])} />
       </div>
-      <TextField label="Image style" value={value.imageStyle} onChange={(v) => set("imageStyle", v)} placeholder="cinematic, highly detailed, dramatic lighting" />
+      <div className="grid gap-2">
+        <TextField label="Image style" value={value.imageStyle} onChange={(v) => set("imageStyle", v)} placeholder="cinematic, highly detailed, dramatic lighting" />
+        <div className="flex flex-wrap gap-1.5">
+          {STYLE_TAGS.map((tag) => {
+            const active = splitTags(value.imageStyle).some((t) => t.toLowerCase() === tag.toLowerCase());
+            return (
+              <Button key={tag} type="button" size="xs" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => set("imageStyle", toggleTag(value.imageStyle, tag))}>
+                {tag}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {KINDS.map((kind) => (
           <SelectField
@@ -66,7 +111,7 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
 
 export const DEFAULT_SETTINGS: SettingsInput = {
   sceneCount: 6,
-  durationSec: 60,
+  durationSec: 6 * DEFAULT_SCENE_SEC,
   narrationLanguage: "km",
   aspectRatio: "9:16",
   providers: {},
