@@ -6,7 +6,16 @@ import type { CreateProviderInput, UpdateProviderInput } from "../domain/schemas
 import { PROVIDER_KINDS, type ProviderRecord } from "../domain/types";
 import { getDriver, PROVIDER_DRIVERS, type DriverContext, type ProviderDriver, type ProviderDriverInfo } from "../providers/drivers";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
-import { GRADIO_PRESETS, legacyProviders, MERGED_GRADIO_GROUPS, toConnectionsConfig, upgradeLegacyGradio, type SeedRecord } from "../providers/seed";
+import {
+  GRADIO_PRESETS,
+  legacyProviders,
+  MERGED_GRADIO_GROUPS,
+  toConnectionsConfig,
+  upgradeLegacyGradio,
+  VOXCPM_PLAIN_DEFAULTS,
+  VOXCPM_VOICE_PARAMS,
+  type SeedRecord,
+} from "../providers/seed";
 import type { AnyProvider } from "../providers/types";
 import { newId, nowIso } from "../utils/text";
 
@@ -22,6 +31,8 @@ export class ProviderService {
     private readonly db: Database,
     private readonly registry: ProviderRegistry,
     private readonly ctx: DriverContext,
+    /** Called before a provider row is deleted (e.g. to remove its voice files). */
+    private readonly onDelete?: (providerId: string) => Promise<void>,
   ) {}
 
   /** Runs the one-time data steps, then loads every record into the registry. */
@@ -31,6 +42,7 @@ export class ProviderService {
     this.once("providers_gradio_v2", () => this.upgradeGradio(config.hfToken));
     this.once("providers_gradio_connections_v3", () => this.mergeGradioConnections());
     this.once("providers_gradio_preset_fix_v4", () => this.repairGradioPresets(config.hfToken));
+    this.once("providers_voxcpm_voices_v5", () => this.enableVoxcpmVoices());
     for (const record of this.repo.list()) this.sync(record);
   }
 
@@ -87,6 +99,7 @@ export class ProviderService {
   delete(id: string): void {
     const record = this.repo.getById(id);
     if (record.isDefault) throw new InputError("Set another default before deleting this provider");
+    void this.onDelete?.(id).catch((e) => console.error(`Cleanup for provider ${record.slug} failed: ${(e as Error).message}`));
     this.repo.delete(id);
     this.registry.remove(record.kind, record.slug);
   }
@@ -230,6 +243,27 @@ export class ProviderService {
     }
     // The existing Hugging Face token gives better GPU quota; GradioApi only sends it to Hugging Face hosts.
     GRADIO_PRESETS.forEach((r) => this.insertSeed({ ...r, config: { ...r.config, hfToken } }));
+  }
+
+  /** Points VoxCPM's reference-audio inputs at the cloned-voice placeholders, leaving user-edited values alone. */
+  private enableVoxcpmVoices(): void {
+    for (const record of this.repo.list({ where: { kind: "audio", type: "gradio-audio" } })) {
+      let changed = false;
+      const connections = ((record.config.connections ?? []) as { params?: Record<string, unknown> }[]).map((c) => {
+        const params = c.params ?? {};
+        if (params.text_input !== "{{text}}") return c;
+        const next = { ...params };
+        for (const [key, placeholder] of Object.entries(VOXCPM_VOICE_PARAMS)) {
+          const current = next[key] === "" && key === "reference_wav_path_input" ? null : next[key];
+          if (key in next && current === VOXCPM_PLAIN_DEFAULTS[key]) {
+            next[key] = placeholder;
+            changed = true;
+          }
+        }
+        return { ...c, params: next };
+      });
+      if (changed) this.repo.update(record.id, { config: { ...record.config, connections }, updatedAt: nowIso() });
+    }
   }
 
   /**

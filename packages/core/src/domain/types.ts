@@ -151,3 +151,18 @@ export interface ProviderRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+/** A cloned voice: a reference clip (plus optional transcript / style) owned by an audio provider. */
+export interface Voice {
+  id: string;
+  providerId: string;
+  name: string;
+  /** Reference audio, relative to the storage root. */
+  filePath: string;
+  /** What is said in the reference clip; improves cloning when the app supports it. */
+  transcript: string;
+  /** Optional style / control instruction, e.g. "warm, slow storyteller". */
+  style: string;
+  createdAt: string;
+  updatedAt: string;
+}

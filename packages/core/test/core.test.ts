@@ -157,3 +157,46 @@ describe("gradio providers", () => {
     expect(toConnectionsConfig({ space: "", apiName: "/generate_video", params: {} })).toMatchObject({ connections: [] });
   });
 });
+
+describe("cloned voices", () => {
+  const wav = (name = "ref.wav") => new File([new Uint8Array(64).fill(1)], name, { type: "audio/wav" });
+
+  test("create, list, resolve, update, choose and delete voices", async () => {
+    const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
+    const voice = await app.voices.create(vox.id, { name: "Grandma", transcript: "Once upon a time", style: "warm" }, wav());
+    expect(voice.filePath).toMatch(/^_voices\/.+\.wav$/);
+    expect(await Bun.file(app.storage.toAbsolute(voice.filePath)).exists()).toBe(true);
+    expect(app.voices.list(vox.id).map((v) => v.name)).toContain("Grandma");
+    expect(app.voices.resolve(voice.id)).toMatchObject({ name: "Grandma", transcript: "Once upon a time", style: "warm" });
+
+    // Voice choices follow the selected audio provider.
+    expect(app.voices.options("voxcpm", "km")).toMatchObject({ cloning: true, voices: [{ value: voice.id, label: "Grandma" }] });
+    expect(app.voices.options("edge", "km").voices.map((v) => v.value)).toContain("km-KH-SreymomNeural");
+
+    const oldPath = app.storage.toAbsolute(voice.filePath);
+    const updated = await app.voices.update(voice.id, { name: "Nana" }, wav("ref.mp3"));
+    expect(updated).toMatchObject({ name: "Nana", transcript: "Once upon a time" });
+    expect(await Bun.file(oldPath).exists()).toBe(false);
+
+    await app.voices.delete(voice.id);
+    expect(await Bun.file(app.storage.toAbsolute(updated.filePath)).exists()).toBe(false);
+    expect(app.voices.resolve(voice.id)).toBeNull();
+  });
+
+  test("rejects voices for providers that cannot clone, and bad files", async () => {
+    const edge = new ProviderRepository(app.db).findBySlug("audio", "edge")!;
+    const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
+    await expect(app.voices.create(edge.id, { name: "x" }, wav())).rejects.toThrow(/does not support/);
+    await expect(app.voices.create(vox.id, { name: "x" }, undefined)).rejects.toThrow(/required/);
+    await expect(app.voices.create(vox.id, { name: "x" }, wav("notes.txt"))).rejects.toThrow(/Unsupported audio/);
+  });
+
+  test("deleting a provider removes its voices and files", async () => {
+    const created = app.providerConfigs.create({ type: "gradio-audio", slug: "tts-temp", config: { connections: [{ space: "a/b", apiName: "/x", params: {} }] } });
+    const voice = await app.voices.create(created.id, { name: "Temp" }, wav());
+    app.providerConfigs.delete(created.id);
+    await Bun.sleep(20);
+    expect(app.voices.resolve(voice.id)).toBeNull();
+    expect(await Bun.file(app.storage.toAbsolute(voice.filePath)).exists()).toBe(false);
+  });
+});

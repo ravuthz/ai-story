@@ -97,6 +97,10 @@ Every kind can use Gradio apps. A Gradio provider holds an ordered list of **con
 
 Placeholders: text `prompt` · image `prompt, aspectRatio, width, height, seed` · audio `text, language, voice` · video `prompt, imagePath, durationSec, seed`. Audio keeps the file type the app returns (e.g. `.wav`).
 
+### Cloned voices (VoxCPM and other Gradio TTS apps)
+
+Gradio audio providers can hold **voices**: a short reference clip (5–30s of clean speech), an optional transcript of the clip, and an optional style. Manage them with **Voices** on the provider's row (Providers → Audio), then pick one as the story's **Voice**. Placeholders for the connection params: `{{voiceFile}}` (the clip, uploaded to the app), `{{voiceTranscript}}`, `{{useTranscript}}` (true when a transcript is set) and `{{voiceStyle}}`; with no voice selected they are `null` / `""` / `false`, so the app uses its default voice. Clips are stored in `storage/_voices/`.
+
 ### MCP media providers
 
 On the Providers page click **Add** on a card and pick an MCP type, or `POST /api/provider-configs`:
@@ -123,7 +127,7 @@ codex mcp add ai-story -- bun /abs/path/ai-story/apps/mcp/src/index.ts
 gemini mcp add ai-story bun /abs/path/ai-story/apps/mcp/src/index.ts
 ```
 
-Tools: `list_categories`, `list_providers`, `list_provider_configs`, `list_provider_types`, `create_provider`, `update_provider`, `set_default_provider`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
+Tools: `list_categories`, `list_providers`, `list_voices`, `create_voice`, `list_provider_configs`, `list_provider_types`, `create_provider`, `update_provider`, `set_default_provider`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
 
 ## Storage layout
 
@@ -142,10 +146,13 @@ storage/
 ## REST API (selected)
 
 ```
-GET  /api/categories            GET  /api/providers         GET /api/voices
+GET  /api/categories            GET  /api/providers
 GET  /api/provider-configs      POST /api/provider-configs  { type, slug, label?, config? }
 GET  /api/provider-configs/drivers   PATCH /api/provider-configs/:id { label?, enabled?, config? }
 POST /api/provider-configs/:id/default   DELETE /api/provider-configs/:id
+GET  /api/voices?audio&language  (voice choices for a story)
+GET  /api/voices/provider/:providerId   POST (multipart: name, file, transcript?, style?)
+PATCH /api/voices/:id (multipart, file optional)   DELETE /api/voices/:id
 GET  /api/projects              POST /api/projects          DELETE /api/projects/:id
 GET  /api/stories?projectId&category&status&limit&offset
 POST /api/stories               { projectId, category, settings?, render? }

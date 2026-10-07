@@ -78,4 +78,17 @@ export const MIGRATIONS: string[] = [
     UNIQUE (kind, slug)
   );
   `,
+  `
+  CREATE TABLE voices (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    transcript TEXT NOT NULL DEFAULT '',
+    style TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_voices_provider ON voices(provider_id);
+  `,
 ];

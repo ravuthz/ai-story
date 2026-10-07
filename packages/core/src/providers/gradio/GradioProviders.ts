@@ -2,7 +2,7 @@ import type { ProviderKind } from "../../domain/types";
 import { DIMENSIONS } from "../../utils/media";
 import { GradioApi } from "../GradioApi";
 import { renderArgs } from "../mcp/McpProviders";
-import type { AudioProvider, AudioRequest, ImageProvider, ImageRequest, TextProvider, TextRequest, VideoClip } from "../types";
+import type { AudioProvider, AudioRequest, ImageProvider, ImageRequest, TextProvider, TextRequest, VideoClip, VoiceResolver } from "../types";
 import { Ffmpeg } from "../video/Ffmpeg";
 import { RemoteVideoProvider } from "../video/RemoteVideoProvider";
 
@@ -38,7 +38,7 @@ export interface GradioProviderConfig {
 export const GRADIO_PLACEHOLDERS: Record<ProviderKind, string[]> = {
   text: ["prompt"],
   image: ["prompt", "aspectRatio", "width", "height", "seed"],
-  audio: ["text", "language", "voice"],
+  audio: ["text", "language", "voice", "voiceFile", "voiceTranscript", "useTranscript", "voiceStyle"],
   video: ["prompt", "imagePath", "durationSec", "seed"],
 };
 
@@ -97,7 +97,10 @@ abstract class GradioProvider {
   readonly id: string = "gradio";
   readonly label: string = "Gradio";
   protected readonly pool: GradioPool;
-  constructor(cfg: GradioProviderConfig) {
+  constructor(
+    cfg: GradioProviderConfig,
+    protected readonly voices?: VoiceResolver,
+  ) {
     this.pool = new GradioPool(cfg);
   }
   get detail() {
@@ -130,8 +133,20 @@ export class GradioImageProvider extends GradioProvider implements ImageProvider
 export class GradioAudioProvider extends GradioProvider implements AudioProvider {
   readonly kind = "audio" as const;
   synthesize({ text, language, voice, outPath }: AudioRequest): Promise<string> {
+    // A cloned voice fills {{voiceFile}} / {{voiceTranscript}} / {{useTranscript}} / {{voiceStyle}}; none = the app's default voice.
+    const cloned = this.voices?.resolve(voice);
+    if (voice && !cloned) console.warn(`Voice "${voice}" not found; using the default voice`);
+    const vars = {
+      text,
+      language,
+      voice: cloned?.name ?? voice,
+      voiceFile: cloned ? GradioApi.file(cloned.filePath) : null,
+      voiceTranscript: cloned?.transcript ?? "",
+      useTranscript: !!cloned?.transcript,
+      voiceStyle: cloned?.style ?? "",
+    };
     // TTS spaces usually return .wav/.flac; keep that extension instead of the requested .mp3.
-    return this.pool.run({ text, language, voice }, (data, api) => api.saveFirstFile(data, outPath, { keepExtension: true }));
+    return this.pool.run(vars, (data, api) => api.saveFirstFile(data, outPath, { keepExtension: true }));
   }
 }
 
@@ -139,7 +154,7 @@ export class GradioVideoProvider extends RemoteVideoProvider {
   readonly id: string = "gradio";
   readonly label: string = "Gradio";
   private readonly pool: GradioPool;
-  constructor(cfg: GradioProviderConfig) {
+  constructor(cfg: GradioProviderConfig, _voices?: VoiceResolver) {
     super();
     this.pool = new GradioPool(cfg);
   }

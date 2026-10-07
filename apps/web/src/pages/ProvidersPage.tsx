@@ -1,6 +1,7 @@
-import { Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { AudioLines, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ProviderDialog } from "@/components/app/ProviderDialog";
+import { VoicesDialog } from "@/components/app/VoicesDialog";
 import { PageHeader } from "@/components/app/Sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,10 @@ const KINDS = [
 
 const INVALIDATE = [keys.providers, keys.providerConfigs];
 
-function ProviderRow({ p, onEdit }: { p: ProviderConfig; onEdit: () => void }) {
+/** Provider types whose voices are uploaded reference clips (matches CLONING_TYPES on the server). */
+const CLONING_TYPES = new Set(["gradio-audio"]);
+
+function ProviderRow({ p, onEdit, onVoices }: { p: ProviderConfig; onEdit: () => void; onVoices: () => void }) {
   const toggle = useAction(api.updateProvider, { invalidate: INVALIDATE });
   const setDefault = useAction(api.setDefaultProvider, { success: `${p.label} is now the default`, invalidate: INVALIDATE });
   const remove = useAction(api.deleteProvider, { success: `${p.label} deleted`, invalidate: INVALIDATE });
@@ -40,6 +44,11 @@ function ProviderRow({ p, onEdit }: { p: ProviderConfig; onEdit: () => void }) {
       </span>
       <span className={p.enabled && p.available ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{status}</span>
       <div className="flex shrink-0 gap-0.5">
+        {CLONING_TYPES.has(p.type) && (
+          <Button size="xs" variant="outline" onClick={onVoices} title="Cloned voices">
+            <AudioLines /> Voices
+          </Button>
+        )}
         {!p.isDefault && (
           <Button size="icon-xs" variant="ghost" disabled={!p.enabled} onClick={() => setDefault.mutate(p.id)} aria-label="Make default" title="Make default">
             <Star />
@@ -67,6 +76,7 @@ function ProviderRow({ p, onEdit }: { p: ProviderConfig; onEdit: () => void }) {
 export function ProvidersPage() {
   const { data = [] } = useProviderConfigs();
   const [tab, setTab] = useState<ProviderKind>("text");
+  const [voicesFor, setVoicesFor] = useState<ProviderConfig | null>(null);
   const [dialog, setDialog] = useState<{ kind: ProviderKind; provider?: ProviderConfig } | null>(null);
 
   return (
@@ -97,13 +107,14 @@ export function ProvidersPage() {
                 {data
                   .filter((p) => p.kind === kind)
                   .map((p) => (
-                    <ProviderRow key={p.id} p={p} onEdit={() => setDialog({ kind, provider: p })} />
+                    <ProviderRow key={p.id} p={p} onEdit={() => setDialog({ kind, provider: p })} onVoices={() => setVoicesFor(p)} />
                   ))}
               </CardContent>
             </Card>
           </TabsContent>
         ))}
       </Tabs>
+      {voicesFor && <VoicesDialog key={voicesFor.id} provider={voicesFor} onOpenChange={(open) => !open && setVoicesFor(null)} />}
       {dialog && (
         <ProviderDialog
           key={dialog.provider?.id ?? `new-${dialog.kind}`}

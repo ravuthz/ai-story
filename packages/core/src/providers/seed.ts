@@ -75,12 +75,19 @@ export function toConnectionsConfig(config: Record<string, unknown>, enabled = t
   return { ...rest, hfToken, connections: space ? [{ space, apiName, params, valueMaps, meta, enabled }] : [] };
 }
 
+/** VoxCPM inputs filled from the selected cloned voice (all empty when no voice is chosen). */
+export const VOXCPM_VOICE_PARAMS = {
+  control_instruction: "{{voiceStyle}}",
+  reference_wav_path_input: "{{voiceFile}}",
+  use_prompt_text: "{{useTranscript}}",
+  prompt_text_input: "{{voiceTranscript}}",
+};
+/** The no-voice defaults the first preset shipped with; only these are replaced by the voice upgrade. */
+export const VOXCPM_PLAIN_DEFAULTS: Record<string, unknown> = { control_instruction: "", reference_wav_path_input: null, use_prompt_text: false, prompt_text_input: "" };
+
 const VOXCPM_PARAMS = {
   text_input: "{{text}}",
-  control_instruction: "",
-  reference_wav_path_input: null,
-  use_prompt_text: false,
-  prompt_text_input: "",
+  ...VOXCPM_VOICE_PARAMS,
   cfg_value_input: 2,
   do_normalize: false,
   denoise: false,

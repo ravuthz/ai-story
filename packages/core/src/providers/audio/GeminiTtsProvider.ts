@@ -6,6 +6,9 @@ import type { AudioProvider, AudioRequest } from "../types";
 const LANGUAGE_NAMES = { km: "Khmer", en: "English" } as const;
 
 export class GeminiTtsProvider extends BaseProvider<"audio"> implements AudioProvider {
+  /** A selection of Gemini's prebuilt voices. */
+  static readonly VOICES = ["Kore", "Puck", "Charon", "Aoede", "Fenrir", "Leda", "Orus", "Zephyr"];
+
   readonly id = "gemini";
   readonly kind = "audio" as const;
   readonly label = "Gemini TTS";

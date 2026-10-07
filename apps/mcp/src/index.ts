@@ -52,6 +52,15 @@ tool("create_provider", "Add a provider from a driver type with its config", Cre
 tool("update_provider", "Change a provider's label, enabled flag or config", { providerId: z.string(), ...UpdateProviderSchema.shape }, ({ providerId, ...patch }) =>
   app.providerConfigs.update(providerId, patch),
 );
+tool("list_voices", "Voice choices for an audio provider id (default provider when omitted): Edge/Gemini voice names or cloned voices", { audio: z.string().optional(), language: z.enum(["km", "en"]).optional() }, (a) =>
+  app.voices.options(a.audio, a.language ?? "km"),
+);
+tool(
+  "create_voice",
+  "Clone a voice for a Gradio audio provider (e.g. VoxCPM) from a local reference audio file",
+  { providerId: z.string(), filePath: z.string(), name: z.string(), transcript: z.string().optional(), style: z.string().optional() },
+  async ({ providerId, filePath, ...input }) => app.voices.create(providerId, input, new File([Bun.file(filePath)], filePath.split("/").pop()!)),
+);
 tool("set_default_provider", "Make a provider the default for its kind", { providerId: z.string() }, (a) => app.providerConfigs.setDefault(a.providerId));
 tool("list_projects", "List projects", {}, () => app.projects.list());
 tool("create_project", "Create a project (stories are stored per project)", CreateProjectSchema.shape, (a) => app.projects.create(a));

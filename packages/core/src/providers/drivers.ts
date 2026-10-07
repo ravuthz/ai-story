@@ -10,7 +10,7 @@ import { CodexImageProvider } from "./image/CodexImageProvider";
 import { GeminiImageProvider } from "./image/GeminiImageProvider";
 import { createMcpProvider, type McpProviderConfig } from "./mcp/McpProviders";
 import { AgentTextProvider } from "./text/AgentTextProvider";
-import type { AnyProvider } from "./types";
+import type { AnyProvider, VoiceResolver } from "./types";
 import { FfmpegMotionVideoProvider } from "./video/FfmpegMotionVideoProvider";
 
 export interface DriverField {
@@ -28,6 +28,8 @@ export interface DriverField {
 
 export interface DriverContext {
   cliTimeoutMs: number;
+  /** Cloned voices, for providers that take a reference clip. */
+  voices?: VoiceResolver;
 }
 
 /** Knows how to build one provider class from a stored config; also describes that config for the UI. */
@@ -82,13 +84,16 @@ const gradioDriver = (kind: ProviderKind): ProviderDriver => ({
     { key: "timeoutSec", label: "Timeout per connection (sec)", type: "number", placeholder: "300", hint: "Move on to the next connection after this long" },
     ...(kind === "video" ? [{ key: "maxDurationSec", label: "Max clip seconds", type: "number" as const, hint: "Optional; shorter clips are looped to the scene length" }] : []),
   ],
-  create: (c) =>
-    new GRADIO_CLASSES[kind]({
+  create: (c, ctx) =>
+    new GRADIO_CLASSES[kind](
+      {
       connections: Array.isArray(c.connections) ? (c.connections as GradioConnection[]) : [],
       hfToken: str(c, "hfToken"),
       timeoutSec: num(c, "timeoutSec"),
       maxDurationSec: num(c, "maxDurationSec"),
-    }),
+      },
+      ctx.voices,
+    ),
 });
 
 const agentSettings = (id: AgentId, c: Record<string, unknown>) => ({

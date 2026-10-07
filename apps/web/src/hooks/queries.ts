@@ -8,6 +8,8 @@ export const keys = {
   providerConfigs: ["provider-configs"] as const,
   providerDrivers: ["provider-drivers"] as const,
   voices: ["voices"] as const,
+  voiceOptions: (audio: string | undefined, language: string) => ["voices", "options", audio ?? "", language] as const,
+  providerVoices: (providerId: string) => ["voices", "provider", providerId] as const,
   projects: ["projects"] as const,
   project: (id: string) => ["projects", id] as const,
   stories: (q: object) => ["stories", q] as const,
@@ -19,7 +21,9 @@ export const useCategories = () => useQuery({ queryKey: keys.categories, queryFn
 export const useProviders = () => useQuery({ queryKey: keys.providers, queryFn: api.providers, staleTime: 60_000 });
 export const useProviderConfigs = () => useQuery({ queryKey: keys.providerConfigs, queryFn: api.providerConfigs });
 export const useProviderDrivers = () => useQuery({ queryKey: keys.providerDrivers, queryFn: api.providerDrivers, staleTime: Infinity });
-export const useVoices = () => useQuery({ queryKey: keys.voices, queryFn: api.voices, staleTime: Infinity });
+export const useVoiceOptions = (audio: string | undefined, language: string) =>
+  useQuery({ queryKey: keys.voiceOptions(audio, language), queryFn: () => api.voiceOptions({ audio, language }) });
+export const useProviderVoices = (providerId: string) => useQuery({ queryKey: keys.providerVoices(providerId), queryFn: () => api.providerVoices(providerId) });
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: api.projects });
 export const useProject = (id: string) => useQuery({ queryKey: keys.project(id), queryFn: () => api.project(id) });
 export const useStories = (q: Parameters<typeof api.stories>[0]) =>

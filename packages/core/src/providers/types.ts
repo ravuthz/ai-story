@@ -41,6 +41,19 @@ export interface ImageProvider extends Provider {
   generate(request: ImageRequest): Promise<string>;
 }
 
+export interface ResolvedVoice {
+  name: string;
+  /** Absolute path of the reference clip. */
+  filePath: string;
+  transcript: string;
+  style: string;
+}
+
+/** Looks up a cloned voice by id (story settings.voice). */
+export interface VoiceResolver {
+  resolve(id: string | undefined): ResolvedVoice | null;
+}
+
 export interface AudioRequest {
   text: string;
   language: Language;

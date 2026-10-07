@@ -10,5 +10,6 @@ export type { StoryWithScenes, ScenePatch } from "./services/StoryService";
 export type { ProviderInfo } from "./providers/types";
 export type { DriverField, ProviderDriverInfo } from "./providers/drivers";
 export { SECRET_MASK, type PublicProviderRecord } from "./services/ProviderService";
+export { CLONING_TYPES, type VoiceOption } from "./services/VoiceService";
 export { EdgeTtsProvider } from "./providers/audio/EdgeTtsProvider";
 export * from "./domain/schemas";

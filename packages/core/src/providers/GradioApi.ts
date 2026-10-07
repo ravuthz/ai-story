@@ -1,4 +1,5 @@
 import { Client, handle_file } from "@gradio/client";
+import { basename } from "node:path";
 import { download, writeBytes } from "../utils/media";
 
 type GradioFile = { url?: string; path?: string } | string;
@@ -32,8 +33,9 @@ export class GradioApi {
     return result.data as unknown[];
   }
 
+  /** Uploads a local file; the name is kept because some apps detect the format from the extension. */
   static file(path: string) {
-    return handle_file(new Blob([Bun.file(path)]));
+    return handle_file(new File([Bun.file(path)], basename(path)));
   }
 
   /**

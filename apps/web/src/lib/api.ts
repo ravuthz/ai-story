@@ -1,6 +1,6 @@
-import type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings } from "@ai-story/core/types";
+import type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings, Voice } from "@ai-story/core/types";
 
-export type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings };
+export type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings, Voice };
 export type StoryWithScenes = Story & { scenes: Scene[] };
 export type RenderStep = "images" | "audios" | "videos" | "final";
 export type SettingsInput = Partial<StorySettings>;
@@ -45,6 +45,19 @@ export interface ProviderInput {
   isDefault?: boolean;
   config?: Record<string, unknown>;
 }
+export interface VoiceOptions {
+  /** The audio provider the choices belong to (the default one when the story doesn't pick one). */
+  providerId: string | null;
+  /** True when voices are user-uploaded reference clips that can be managed. */
+  cloning: boolean;
+  voices: { value: string; label: string }[];
+}
+export interface VoiceInput {
+  name?: string;
+  transcript?: string;
+  style?: string;
+  file?: File;
+}
 export interface Page<T> {
   total: number;
   items: T[];
@@ -61,10 +74,12 @@ class ApiClient {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    // FormData (file uploads) sets its own multipart content type.
+    const isForm = body instanceof FormData;
     const res = await fetch(this.base + path, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+      headers: body && !isForm ? { "content-type": "application/json" } : undefined,
+      body: isForm ? body : body ? JSON.stringify(body) : undefined,
     });
     if (res.status === 204) return undefined as T;
     const data = await res.json().catch(() => ({}));
@@ -86,7 +101,19 @@ class ApiClient {
     this.request<ProviderRecord>("PATCH", `/provider-configs/${id}`, body);
   setDefaultProvider = (id: string) => this.request<ProviderRecord>("POST", `/provider-configs/${id}/default`);
   deleteProvider = (id: string) => this.request<void>("DELETE", `/provider-configs/${id}`);
-  voices = () => this.request<Record<"km" | "en", string[]>>("GET", "/voices");
+  voiceOptions = (q: { audio?: string; language: string }) => this.request<VoiceOptions>("GET", `/voices${this.qs(q)}`);
+  providerVoices = (providerId: string) => this.request<Voice[]>("GET", `/voices/provider/${providerId}`);
+  createVoice = ({ providerId, ...input }: VoiceInput & { providerId: string }) =>
+    this.request<Voice>("POST", `/voices/provider/${providerId}`, ApiClient.voiceForm(input));
+  updateVoice = ({ id, ...input }: VoiceInput & { id: string }) => this.request<Voice>("PATCH", `/voices/${id}`, ApiClient.voiceForm(input));
+  deleteVoice = (id: string) => this.request<void>("DELETE", `/voices/${id}`);
+
+  private static voiceForm({ file, ...fields }: VoiceInput): FormData {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined) form.set(k, v);
+    if (file) form.set("file", file);
+    return form;
+  }
 
   projects = () => this.request<(Project & { storyCount: number })[]>("GET", "/projects");
   project = (id: string) => this.request<Project>("GET", `/projects/${id}`);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useProviders, useVoices } from "@/hooks/queries";
+import { useProviders, useVoiceOptions } from "@/hooks/queries";
 import type { ProviderInfo, SettingsInput } from "@/lib/api";
 import { NumberField, SelectField, TextField, type Option } from "./fields";
 
@@ -49,7 +49,7 @@ const providerOptions = (providers: ProviderInfo[] = [], kind: ProviderInfo["kin
 /** Shared editor for per-story settings: used by "new story", "batch" and the story page. */
 export function SettingsForm({ value, onChange }: { value: SettingsInput; onChange: (next: SettingsInput) => void }) {
   const { data: providers } = useProviders();
-  const { data: voices } = useVoices();
+  const { data: voiceOptions } = useVoiceOptions(value.providers?.audio, value.narrationLanguage ?? "km");
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
   const language = value.narrationLanguage ?? "km";
   // Duration = Scenes × Sec / scene; editing any one of them recalculates the others.
@@ -99,14 +99,17 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
             placeholder={`Default (${providers?.defaults[kind] ?? "…"})`}
             value={value.providers?.[kind]}
             options={providerOptions(providers?.providers, kind)}
-            onChange={(v) => set("providers", { ...value.providers, [kind]: v })}
+            // A voice belongs to one audio provider, so switching provider clears it.
+            onChange={(v) => onChange({ ...value, providers: { ...value.providers, [kind]: v }, ...(kind === "audio" && { voice: undefined }) })}
           />
         ))}
         <SelectField
           label="Voice"
+          placeholder="Default voice"
           value={value.voice}
-          options={(voices?.[language] ?? []).map((v) => ({ value: v, label: v }))}
-          onChange={(v) => set("voice", v)}
+          options={[{ value: "", label: "Default voice" }, ...(voiceOptions?.voices ?? [])]}
+          onChange={(v) => set("voice", v || undefined)}
+          hint={voiceOptions?.cloning && !voiceOptions.voices.length ? "Add cloned voices on the Providers page" : undefined}
         />
       </div>
     </div>

@@ -28,6 +28,7 @@ export function SelectField({
   onChange,
   placeholder = "Default",
   className,
+  hint,
 }: {
   label: string;
   value: string | undefined;
@@ -35,9 +36,10 @@ export function SelectField({
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  hint?: string;
 }) {
   return (
-    <Field label={label} className={className}>
+    <Field label={label} className={className} hint={hint}>
       <Select items={options} value={value ?? null} onValueChange={(v) => v !== null && onChange(String(v))}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder={placeholder} />

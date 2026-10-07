@@ -3,15 +3,27 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { keys, useAction } from "@/hooks/queries";
-import { api, fileUrl, type RenderStep, type Scene } from "@/lib/api";
+import { api, fileUrl, type RenderStep, type Scene, type StorySettings } from "@/lib/api";
+import { aspectOf } from "@/lib/aspect";
 import { NumberField, SelectField, TextField } from "./fields";
 
 const MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"].map((m) => ({ value: m, label: m }));
 type Draft = Pick<Scene, "text" | "narration" | "imagePrompt" | "motion" | "durationSec">;
 const toDraft = ({ text, narration, imagePrompt, motion, durationSec }: Scene): Draft => ({ text, narration, imagePrompt, motion, durationSec });
 
-/** One scene: media previews + editable script, with per-scene re-render. */
-export function SceneCard({ scene, version, narrationLang }: { scene: Scene; version: string; narrationLang: string }) {
+/** One scene: media previews (shaped like the story's aspect ratio) + editable script, with per-scene re-render. */
+export function SceneCard({
+  scene,
+  version,
+  narrationLang,
+  aspectRatio,
+}: {
+  scene: Scene;
+  version: string;
+  narrationLang: string;
+  aspectRatio: StorySettings["aspectRatio"];
+}) {
+  const aspect = aspectOf(aspectRatio);
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
   useEffect(() => setDraft(toDraft(scene)), [scene]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(scene));
@@ -29,15 +41,24 @@ export function SceneCard({ scene, version, narrationLang }: { scene: Scene; ver
 
   return (
     <Card>
-      <CardContent className="grid gap-4 md:grid-cols-[220px_1fr]">
+      <CardContent className={`grid gap-4 ${aspect.sceneGrid}`}>
         <div className="grid content-start gap-2">
-          <div className="flex aspect-[9/16] items-center justify-center overflow-hidden rounded-md bg-muted">
+          {/* object-contain: media rendered at an older aspect ratio is shown whole (letterboxed), not cropped. */}
+          <div className={`relative flex ${aspect.box} items-center justify-center overflow-hidden rounded-md bg-muted`}>
             {video ? (
-              <video src={video} poster={image} controls className="size-full object-cover" />
+              <video src={video} poster={image} controls className="size-full bg-black object-contain" />
             ) : image ? (
-              <img src={image} alt={`Scene ${scene.index + 1}`} className="size-full object-cover" />
+              <img src={image} alt={`Scene ${scene.index + 1}`} className="size-full object-contain" />
             ) : (
-              <ImageIcon className="size-8 text-muted-foreground" />
+              <div className="grid justify-items-center gap-1 text-muted-foreground">
+                <ImageIcon className="size-8" />
+                <span className="text-xs">{aspectRatio}</span>
+              </div>
+            )}
+            {(image || video) && (
+              <span className="pointer-events-none absolute top-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                {video ? "clip" : "image"} · {aspectRatio}
+              </span>
             )}
           </div>
           {audio && <audio src={audio} controls className="h-8 w-full" />}
