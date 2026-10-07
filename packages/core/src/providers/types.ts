@@ -1,4 +1,4 @@
-import type { AspectRatio, Language, MotionType, ProviderKind } from "../domain/types";
+import type { AspectRatio, Language, MotionType, ProviderKind, VoiceMode } from "../domain/types";
 
 export interface ProviderInfo {
   id: string;
@@ -43,8 +43,9 @@ export interface ImageProvider extends Provider {
 
 export interface ResolvedVoice {
   name: string;
-  /** Absolute path of the reference clip. */
-  filePath: string;
+  mode: VoiceMode;
+  /** Absolute path of the reference clip; null for a designed voice. */
+  filePath: string | null;
   transcript: string;
   style: string;
 }
@@ -58,6 +59,10 @@ export interface AudioRequest {
   text: string;
   language: Language;
   voice?: string;
+  /** The kind of custom voice the story asked for; a voice of the other kind is refused. */
+  voiceMode?: VoiceMode;
+  /** Voice design text (voiceMode "design"); blank = the provider's default description. */
+  voiceDescription?: string;
   /** Absolute output path (.mp3/.wav). */
   outPath: string;
 }

@@ -9,7 +9,9 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { keys, useAction, useProviderConfigs } from "@/hooks/queries";
-import { api, type ProviderConfig, type ProviderKind } from "@/lib/api";
+import { api, type ProviderConfig, type ProviderKind, type Voice } from "@/lib/api";
+
+type VoiceMode = Voice["mode"];
 
 const KINDS = [
   { kind: "text", tab: "Script", title: "Story writers", hint: "Headless agent CLIs (codex, claude, gemini, agy, omp), any Gradio app, or MCP" },
@@ -23,7 +25,7 @@ const INVALIDATE = [keys.providers, keys.providerConfigs];
 /** Provider types whose voices are uploaded reference clips (matches CLONING_TYPES on the server). */
 const CLONING_TYPES = new Set(["gradio-audio"]);
 
-function ProviderRow({ p, onEdit, onVoices }: { p: ProviderConfig; onEdit: () => void; onVoices: () => void }) {
+function ProviderRow({ p, onEdit, onVoices }: { p: ProviderConfig; onEdit: () => void; onVoices: (add?: VoiceMode) => void }) {
   const toggle = useAction(api.updateProvider, { invalidate: INVALIDATE });
   const setDefault = useAction(api.setDefaultProvider, { success: `${p.label} is now the default`, invalidate: INVALIDATE });
   const remove = useAction(api.deleteProvider, { success: `${p.label} deleted`, invalidate: INVALIDATE });
@@ -45,8 +47,8 @@ function ProviderRow({ p, onEdit, onVoices }: { p: ProviderConfig; onEdit: () =>
       <span className={p.enabled && p.available ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{status}</span>
       <div className="flex shrink-0 gap-0.5">
         {CLONING_TYPES.has(p.type) && (
-          <Button size="xs" variant="outline" onClick={onVoices} title="Cloned voices">
-            <AudioLines /> Voices
+          <Button size="xs" variant="outline" onClick={() => onVoices()} title="Clone or design voices">
+            <AudioLines /> Clone / design voices
           </Button>
         )}
         {!p.isDefault && (
@@ -76,7 +78,7 @@ function ProviderRow({ p, onEdit, onVoices }: { p: ProviderConfig; onEdit: () =>
 export function ProvidersPage() {
   const { data = [] } = useProviderConfigs();
   const [tab, setTab] = useState<ProviderKind>("text");
-  const [voicesFor, setVoicesFor] = useState<ProviderConfig | null>(null);
+  const [voicesFor, setVoicesFor] = useState<{ provider: ProviderConfig; add?: VoiceMode } | null>(null);
   const [dialog, setDialog] = useState<{ kind: ProviderKind; provider?: ProviderConfig } | null>(null);
 
   return (
@@ -107,19 +109,32 @@ export function ProvidersPage() {
                 {data
                   .filter((p) => p.kind === kind)
                   .map((p) => (
-                    <ProviderRow key={p.id} p={p} onEdit={() => setDialog({ kind, provider: p })} onVoices={() => setVoicesFor(p)} />
+                    <ProviderRow key={p.id} p={p} onEdit={() => setDialog({ kind, provider: p })} onVoices={(add) => setVoicesFor({ provider: p, add })} />
                   ))}
               </CardContent>
             </Card>
           </TabsContent>
         ))}
       </Tabs>
-      {voicesFor && <VoicesDialog key={voicesFor.id} provider={voicesFor} onOpenChange={(open) => !open && setVoicesFor(null)} />}
+      {voicesFor && (
+        <VoicesDialog
+          key={`${voicesFor.provider.id}-${voicesFor.add ?? ""}`}
+          provider={voicesFor.provider}
+          initialTab={voicesFor.add}
+          onOpenChange={(open) => !open && setVoicesFor(null)}
+        />
+      )}
       {dialog && (
         <ProviderDialog
           key={dialog.provider?.id ?? `new-${dialog.kind}`}
           kind={dialog.kind}
           provider={dialog.provider}
+          // From the Edit dialog: close it and open the voices dialog (optionally straight into clone / design).
+          onVoices={(add) => {
+            const provider = dialog.provider!;
+            setDialog(null);
+            setVoicesFor({ provider, add });
+          }}
           open
           onOpenChange={(open) => !open && setDialog(null)}
         />

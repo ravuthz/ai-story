@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { keys, useAction, useProviderDrivers } from "@/hooks/queries";
+import { AudioLines, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { keys, useAction, useProviderDrivers, useProviderVoices } from "@/hooks/queries";
 import { api, type DriverField, type ProviderConfig, type ProviderKind } from "@/lib/api";
 import { ConnectionsEditor, type ConnectionDraft } from "./ConnectionsEditor";
 import { Field, SelectField, TextField } from "./fields";
@@ -28,17 +30,50 @@ const toDrafts = (value: unknown): ConnectionDraft[] =>
     meta: json(c.meta),
   }));
 
+/** The voice in use, inside the Edit dialog, with shortcuts to the two voice tabs. */
+function VoicesSection({ provider, onVoices }: { provider: ProviderConfig; onVoices: (tab?: "clone" | "design") => void }) {
+  const { data: voices = [] } = useProviderVoices(provider.id);
+  const saved = (provider.config.defaultVoice ?? {}) as { mode?: string; voiceId?: string; description?: string };
+  const inUse =
+    saved.mode === "clone"
+      ? `Cloned voice “${voices.find((v) => v.id === saved.voiceId)?.name ?? "…"}”`
+      : saved.mode === "design"
+        ? `Designed voice: ${saved.description}`
+        : "The app's own default voice";
+  return (
+    <Field label="Voice" hint="Stories use this unless they choose their own voice.">
+      <div className="grid gap-2 rounded-lg border p-3">
+        <p className="truncate text-sm">
+          <span className="text-muted-foreground">In use: </span>
+          {inUse}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button type="button" variant="outline" onClick={() => onVoices("clone")}>
+            <AudioLines /> Use clone voice
+          </Button>
+          <Button type="button" variant="outline" onClick={() => onVoices("design")}>
+            <Sparkles /> Design a voice
+          </Button>
+        </div>
+      </div>
+    </Field>
+  );
+}
+
 /** Adds a provider (pick a driver type) or edits an existing one; type and id are fixed after creation. */
 export function ProviderDialog({
   kind,
   provider,
   open,
   onOpenChange,
+  onVoices,
 }: {
   kind: ProviderKind;
   provider?: ProviderConfig;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Opens the voices dialog for this provider; `add` jumps straight into cloning or designing. */
+  onVoices?: (add?: "clone" | "design") => void;
 }) {
   const { data: drivers = [] } = useProviderDrivers();
   const options = drivers.filter((d) => d.kind === kind);
@@ -57,7 +92,8 @@ export function ProviderDialog({
 
   const submit = () => {
     if (!driver) return;
-    const values = Object.fromEntries(driver.fields.map((f) => [f.key, f.type === "connections" ? connectionsValue : value(f)]));
+    // Hidden fields (e.g. the default voice) are managed elsewhere; omitting them keeps the stored value.
+    const values = Object.fromEntries(driver.fields.filter((f) => !f.hidden).map((f) => [f.key, f.type === "connections" ? connectionsValue : value(f)]));
     if (provider) update.mutate({ id: provider.id, label, config: values }, { onSuccess: close });
     else create.mutate({ type: driver.type, slug: slug.trim(), label, config: values }, { onSuccess: close });
   };
@@ -90,7 +126,8 @@ export function ProviderDialog({
         />
       </div>
       <TextField label="Label" value={label} onChange={setLabel} placeholder={driver?.label} />
-      {driver?.fields.map((field) =>
+      {provider && provider.type === "gradio-audio" && onVoices && <VoicesSection provider={provider} onVoices={onVoices} />}
+      {driver?.fields.filter((f) => !f.hidden).map((field) =>
         field.type === "connections" ? (
           <Field key={field.key} label={field.label} hint={field.hint}>
             <ConnectionsEditor

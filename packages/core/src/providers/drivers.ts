@@ -5,7 +5,7 @@ import { EdgeTtsProvider } from "./audio/EdgeTtsProvider";
 import { GeminiTtsProvider } from "./audio/GeminiTtsProvider";
 import { AGENT_CLASSES } from "./cli/agents";
 import { GeminiApi } from "./GeminiApi";
-import { GRADIO_PLACEHOLDERS, GradioAudioProvider, type GradioConnection, GradioImageProvider, GradioTextProvider, GradioVideoProvider } from "./gradio/GradioProviders";
+import { GRADIO_PLACEHOLDERS, GradioAudioProvider, type GradioConnection, type GradioProviderConfig, GradioImageProvider, GradioTextProvider, GradioVideoProvider } from "./gradio/GradioProviders";
 import { CodexImageProvider } from "./image/CodexImageProvider";
 import { GeminiImageProvider } from "./image/GeminiImageProvider";
 import { createMcpProvider, type McpProviderConfig } from "./mcp/McpProviders";
@@ -21,6 +21,8 @@ export interface DriverField {
    * · connections: ordered GradioConnection[] (own editor).
    */
   type: "text" | "secret" | "number" | "json" | "list" | "connections";
+  /** Stored and validated like the others but edited elsewhere (not shown in the provider form). */
+  hidden?: boolean;
   placeholder?: string;
   hint?: string;
   required?: boolean;
@@ -83,6 +85,8 @@ const gradioDriver = (kind: ProviderKind): ProviderDriver => ({
     { ...HF_TOKEN, hint: "Sent only to Hugging Face spaces" },
     { key: "timeoutSec", label: "Timeout per connection (sec)", type: "number", placeholder: "300", hint: "Move on to the next connection after this long" },
     ...(kind === "video" ? [{ key: "maxDurationSec", label: "Max clip seconds", type: "number" as const, hint: "Optional; shorter clips are looped to the scene length" }] : []),
+    // Set from the voices dialog: { mode: "clone", voiceId } or { mode: "design", description }.
+    ...(kind === "audio" ? [{ key: "defaultVoice", label: "Default voice", type: "json" as const, hidden: true }] : []),
   ],
   create: (c, ctx) =>
     new GRADIO_CLASSES[kind](
@@ -91,6 +95,7 @@ const gradioDriver = (kind: ProviderKind): ProviderDriver => ({
       hfToken: str(c, "hfToken"),
       timeoutSec: num(c, "timeoutSec"),
       maxDurationSec: num(c, "maxDurationSec"),
+      defaultVoice: obj(c, "defaultVoice") as GradioProviderConfig["defaultVoice"],
       },
       ctx.voices,
     ),

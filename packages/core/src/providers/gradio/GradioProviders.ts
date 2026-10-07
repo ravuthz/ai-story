@@ -1,8 +1,8 @@
-import type { ProviderKind } from "../../domain/types";
+import type { ProviderKind, VoiceMode } from "../../domain/types";
 import { DIMENSIONS } from "../../utils/media";
 import { GradioApi } from "../GradioApi";
 import { renderArgs } from "../mcp/McpProviders";
-import type { AudioProvider, AudioRequest, ImageProvider, ImageRequest, TextProvider, TextRequest, VideoClip, VoiceResolver } from "../types";
+import type { AudioProvider, AudioRequest, ImageProvider, ImageRequest, ResolvedVoice, TextProvider, TextRequest, VideoClip, VoiceResolver } from "../types";
 import { Ffmpeg } from "../video/Ffmpeg";
 import { RemoteVideoProvider } from "../video/RemoteVideoProvider";
 
@@ -32,6 +32,8 @@ export interface GradioProviderConfig {
   timeoutSec?: number;
   /** Video only: longest clip to request; the clip is looped locally to the scene length. */
   maxDurationSec?: number;
+  /** Audio only: voice used when the story doesn't choose one (a selected clone, or a description). */
+  defaultVoice?: { mode?: VoiceMode; voiceId?: string; description?: string };
 }
 
 /** Placeholders each kind fills in; shown as the params hint in the UI. */
@@ -132,18 +134,44 @@ export class GradioImageProvider extends GradioProvider implements ImageProvider
 
 export class GradioAudioProvider extends GradioProvider implements AudioProvider {
   readonly kind = "audio" as const;
-  synthesize({ text, language, voice, outPath }: AudioRequest): Promise<string> {
-    // A cloned voice fills {{voiceFile}} / {{voiceTranscript}} / {{useTranscript}} / {{voiceStyle}}; none = the app's default voice.
-    const cloned = this.voices?.resolve(voice);
-    if (voice && !cloned) console.warn(`Voice "${voice}" not found; using the default voice`);
+  /**
+   * Voice: the story's choice, else the provider's default. "clone" sends the selected voice's clip (+ transcript);
+   * "design" sends only a description. Fills {{voiceFile}} {{voiceTranscript}} {{useTranscript}} {{voiceStyle}}.
+   */
+  async synthesize({ text, language, voice, voiceMode, voiceDescription, outPath }: AudioRequest): Promise<string> {
+    const fallback = this.pool.cfg.defaultVoice ?? {};
+    const mode = voiceMode ?? (voice ? undefined : fallback.mode);
+    const kind = (m: string) => (m === "clone" ? "cloned" : "designed");
+    const mismatch = (v: ResolvedVoice, want: VoiceMode) =>
+      new Error(`Voice "${v.name}" is a ${kind(v.mode)} voice, but the story is set to use a ${kind(want)} voice; pick a ${kind(want)} voice in its settings`);
+
+    let cloned: ResolvedVoice | null = null;
+    let style = "";
+    if (mode === "design") {
+      // Saved designed voices (older data) still work; otherwise the description text is the voice.
+      const saved = voice ? (this.voices?.resolve(voice) ?? null) : null;
+      if (saved && saved.mode !== "design") throw mismatch(saved, "design");
+      style = voiceDescription?.trim() || saved?.style || fallback.description?.trim() || "";
+      if (!style) throw new Error("Voice design needs a voice description (story settings or the provider's voices)");
+    } else {
+      const id = voice || (mode === "clone" ? fallback.voiceId : undefined);
+      const found = id ? (this.voices?.resolve(id) ?? null) : null;
+      if (id && !found) console.warn(`Voice "${id}" not found; using the default voice`);
+      if (found && mode === "clone" && found.mode !== "clone") throw mismatch(found, "clone");
+      if (found?.mode === "design") style = found.style;
+      else if (found) {
+        cloned = found;
+        style = found.style;
+      }
+    }
     const vars = {
       text,
       language,
       voice: cloned?.name ?? voice,
-      voiceFile: cloned ? GradioApi.file(cloned.filePath) : null,
+      voiceFile: cloned?.filePath ? GradioApi.file(cloned.filePath) : null,
       voiceTranscript: cloned?.transcript ?? "",
       useTranscript: !!cloned?.transcript,
-      voiceStyle: cloned?.style ?? "",
+      voiceStyle: style,
     };
     // TTS spaces usually return .wav/.flac; keep that extension instead of the requested .mp3.
     return this.pool.run(vars, (data, api) => api.saveFirstFile(data, outPath, { keepExtension: true }));

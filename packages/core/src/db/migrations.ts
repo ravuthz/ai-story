@@ -91,4 +91,7 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_voices_provider ON voices(provider_id);
   `,
+  `
+  ALTER TABLE voices ADD COLUMN mode TEXT NOT NULL DEFAULT 'clone';
+  `,
 ];

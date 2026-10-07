@@ -97,9 +97,9 @@ Every kind can use Gradio apps. A Gradio provider holds an ordered list of **con
 
 Placeholders: text `prompt` · image `prompt, aspectRatio, width, height, seed` · audio `text, language, voice` · video `prompt, imagePath, durationSec, seed`. Audio keeps the file type the app returns (e.g. `.wav`).
 
-### Cloned voices (VoxCPM and other Gradio TTS apps)
+### Custom voices: clone or design (VoxCPM and other Gradio TTS apps)
 
-Gradio audio providers can hold **voices**: a short reference clip (5–30s of clean speech), an optional transcript of the clip, and an optional style. Manage them with **Voices** on the provider's row (Providers → Audio), then pick one as the story's **Voice**. Placeholders for the connection params: `{{voiceFile}}` (the clip, uploaded to the app), `{{voiceTranscript}}`, `{{useTranscript}}` (true when a transcript is set) and `{{voiceStyle}}`; with no voice selected they are `null` / `""` / `false`, so the app uses its default voice. Clips are stored in `storage/_voices/`.
+Gradio audio providers can hold **voices** of two kinds: a **clone** (a short reference clip of 5–30s clean speech, an optional transcript of the clip, and an optional style) or a **design** (no audio, just a description such as "an elderly man with a deep, calm voice", sent as the style / VoxCPM `control_instruction`). Manage them with **Clone / design voices** on the provider's row (Providers → Audio) or in its Edit dialog. In a story's settings, choose **Clone voice** or **Voice design**, then pick a voice of that kind; narration refuses a voice of the other kind. Placeholders for the connection params: `{{voiceFile}}` (the clip, uploaded to the app), `{{voiceTranscript}}`, `{{useTranscript}}` (true when a transcript is set) and `{{voiceStyle}}`; with no voice selected they are `null` / `""` / `false`, so the app uses its default voice. Clips are stored in `storage/_voices/`.
 
 ### MCP media providers
 

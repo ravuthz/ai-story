@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { RENDER_STEPS } from "../services/RenderService";
-import { CategoryIdSchema, MOTION_TYPES, PartialSettingsSchema } from "./types";
+import { CategoryIdSchema, LanguageSchema, MOTION_TYPES, PartialSettingsSchema, VOICE_MODES } from "./types";
 
 /** Input schemas shared by the HTTP API, the MCP server and job payloads. */
 
@@ -64,7 +64,23 @@ export type UpdateProviderInput = z.infer<typeof UpdateProviderSchema>;
 
 export const VoiceSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  /** "clone" (reference clip) or "design" (described in `style`); defaults to clone. */
+  mode: z.enum(VOICE_MODES).optional(),
   transcript: z.string().max(2000).optional(),
   style: z.string().max(500).optional(),
 });
 export type VoiceInput = z.infer<typeof VoiceSchema>;
+
+/** A provider's default narration voice: a selected cloned voice, or a designed one described in words. */
+export const DefaultVoiceSchema = z.object({
+  mode: z.enum(VOICE_MODES),
+  voiceId: z.string().optional(),
+  description: z.string().max(1000).optional(),
+});
+export type DefaultVoice = z.infer<typeof DefaultVoiceSchema>;
+
+/** "Try it": speak a short text with a voice choice before saving it. */
+export const PreviewVoiceSchema = DefaultVoiceSchema.extend({
+  text: z.string().trim().min(1).max(500),
+  language: LanguageSchema.optional(),
+});

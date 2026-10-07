@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useProviders, useVoiceOptions } from "@/hooks/queries";
-import type { ProviderInfo, SettingsInput } from "@/lib/api";
-import { NumberField, SelectField, TextField, type Option } from "./fields";
+import { AudioLines, Sparkles } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ProviderInfo, SettingsInput, VoiceOptions } from "@/lib/api";
+import { Field, NumberField, SelectField, TextField, type Option } from "./fields";
 
 const LANGUAGES: Option[] = [
   { value: "km", label: "Khmer (ខ្មែរ)" },
@@ -45,6 +47,72 @@ const providerOptions = (providers: ProviderInfo[] = [], kind: ProviderInfo["kin
   providers
     .filter((p) => p.kind === kind)
     .map((p) => ({ value: p.id, label: `${p.label}${p.available ? "" : " (unavailable)"}`, disabled: !p.available }));
+
+const VOICE_KINDS = { clone: { tab: "Use clone voice" }, design: { tab: "Design a voice" } } as const;
+type VoiceMode = keyof typeof VOICE_KINDS;
+
+/**
+ * Voice picker. For providers with custom voices the story chooses a cloned voice or a voice description;
+ * left empty, the provider's own voice (set in its voices dialog) is used. The server refuses a mismatch.
+ */
+function VoiceField({ value, onChange, options }: { value: SettingsInput; onChange: (next: SettingsInput) => void; options?: VoiceOptions }) {
+  const all = options?.voices ?? [];
+  const selected = all.find((v) => v.value === value.voice);
+  if (!options?.cloning) {
+    return (
+      <SelectField
+        label="Voice"
+        placeholder="Default voice"
+        value={value.voice}
+        options={[{ value: "", label: "Default voice" }, ...all]}
+        onChange={(v) => onChange({ ...value, voice: v || undefined })}
+      />
+    );
+  }
+  const fallback = options.defaultVoice;
+  const mode: VoiceMode = value.voiceMode ?? selected?.mode ?? fallback?.mode ?? "clone";
+  const clones = all.filter((v) => v.mode === "clone");
+  const providerVoice =
+    fallback?.mode === "clone" && fallback.voiceName ? `Provider's voice (${fallback.voiceName})` : "Provider's default voice";
+  const providerDescription = fallback?.mode === "design" ? fallback.description : undefined;
+  return (
+    <Field label="Voice" className="sm:col-span-2">
+      <Tabs
+        value={mode}
+        // Switching kind keeps the voice only if it already is of that kind.
+        onValueChange={(m) => onChange({ ...value, voiceMode: m as VoiceMode, voice: selected?.mode === m ? value.voice : undefined })}
+      >
+        <TabsList className="w-full">
+          {(Object.keys(VOICE_KINDS) as VoiceMode[]).map((m) => (
+            <TabsTrigger key={m} value={m}>
+              {m === "clone" ? <AudioLines /> : <Sparkles />} {VOICE_KINDS[m].tab}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {mode === "clone" ? (
+        <SelectField
+          label="Cloned voice"
+          placeholder={providerVoice}
+          value={selected?.mode === "clone" ? value.voice : undefined}
+          options={[{ value: "", label: providerVoice }, ...clones]}
+          onChange={(v) => onChange({ ...value, voiceMode: "clone", voice: v || undefined })}
+          hint={clones.length ? undefined : "No cloned voices yet: upload one on Providers → Audio → Clone / design voices"}
+        />
+      ) : (
+        <TextField
+          label={providerDescription ? "Voice description" : "Voice description *"}
+          multiline
+          rows={2}
+          value={value.voiceDescription}
+          onChange={(v) => onChange({ ...value, voiceMode: "design", voice: undefined, voiceDescription: v || undefined })}
+          placeholder={providerDescription ?? "A young woman with a bright, warm voice, speaking gently"}
+          hint={providerDescription ? "Blank uses the provider's voice description" : "Required: describe the voice (no provider description is set)"}
+        />
+      )}
+    </Field>
+  );
+}
 
 /** Shared editor for per-story settings: used by "new story", "batch" and the story page. */
 export function SettingsForm({ value, onChange }: { value: SettingsInput; onChange: (next: SettingsInput) => void }) {
@@ -100,17 +168,10 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
             value={value.providers?.[kind]}
             options={providerOptions(providers?.providers, kind)}
             // A voice belongs to one audio provider, so switching provider clears it.
-            onChange={(v) => onChange({ ...value, providers: { ...value.providers, [kind]: v }, ...(kind === "audio" && { voice: undefined }) })}
+            onChange={(v) => onChange({ ...value, providers: { ...value.providers, [kind]: v }, ...(kind === "audio" && { voice: undefined, voiceMode: undefined }) })}
           />
         ))}
-        <SelectField
-          label="Voice"
-          placeholder="Default voice"
-          value={value.voice}
-          options={[{ value: "", label: "Default voice" }, ...(voiceOptions?.voices ?? [])]}
-          onChange={(v) => set("voice", v || undefined)}
-          hint={voiceOptions?.cloning && !voiceOptions.voices.length ? "Add cloned voices on the Providers page" : undefined}
-        />
+        <VoiceField value={value} onChange={onChange} options={voiceOptions} />
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ export interface DriverField {
   key: string;
   label: string;
   type: "text" | "secret" | "number" | "json" | "list" | "connections";
+  hidden?: boolean;
   placeholder?: string;
   hint?: string;
   required?: boolean;
@@ -50,10 +51,20 @@ export interface VoiceOptions {
   providerId: string | null;
   /** True when voices are user-uploaded reference clips that can be managed. */
   cloning: boolean;
-  voices: { value: string; label: string }[];
+  /** `mode` is set for custom voices (cloned / designed). */
+  voices: { value: string; label: string; mode?: Voice["mode"] }[];
+  /** The provider's own default voice (set in its voices dialog), used when a story doesn't choose. */
+  defaultVoice: (DefaultVoice & { voiceName?: string }) | null;
+}
+/** A provider's default narration voice: a selected clone, or a voice description. */
+export interface DefaultVoice {
+  mode: Voice["mode"];
+  voiceId?: string;
+  description?: string;
 }
 export interface VoiceInput {
   name?: string;
+  mode?: Voice["mode"];
   transcript?: string;
   style?: string;
   file?: File;
@@ -107,6 +118,10 @@ class ApiClient {
     this.request<Voice>("POST", `/voices/provider/${providerId}`, ApiClient.voiceForm(input));
   updateVoice = ({ id, ...input }: VoiceInput & { id: string }) => this.request<Voice>("PATCH", `/voices/${id}`, ApiClient.voiceForm(input));
   deleteVoice = (id: string) => this.request<void>("DELETE", `/voices/${id}`);
+  setDefaultVoice = ({ providerId, ...body }: DefaultVoice & { providerId: string }) =>
+    this.request<ProviderRecord>("POST", `/voices/provider/${providerId}/default`, body);
+  previewVoice = ({ providerId, ...body }: DefaultVoice & { providerId: string; text: string; language?: string }) =>
+    this.request<{ filePath: string }>("POST", `/voices/provider/${providerId}/preview`, body);
 
   private static voiceForm({ file, ...fields }: VoiceInput): FormData {
     const form = new FormData();

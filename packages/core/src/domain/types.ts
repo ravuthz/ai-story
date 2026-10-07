@@ -31,6 +31,9 @@ const ProvidersSchema = z.object({
 });
 
 /** Per-story configuration fields, without defaults (safe for partial updates). */
+export const VOICE_MODES = ["clone", "design"] as const;
+export type VoiceMode = (typeof VOICE_MODES)[number];
+
 const SettingsFieldsSchema = z.object({
   sceneCount: z.number().int().min(1).max(60),
   /** Target total duration in seconds; split evenly across scenes unless a scene overrides it. */
@@ -40,6 +43,10 @@ const SettingsFieldsSchema = z.object({
   imageStyle: z.string(),
   providers: ProvidersSchema,
   voice: z.string().optional(),
+  /** For providers with custom voices: narrate with a cloned or a designed voice; `voice` must be of this kind. */
+  voiceMode: z.enum(VOICE_MODES).optional(),
+  /** Voice design for this story (voiceMode "design"); blank = the provider's own voice description. */
+  voiceDescription: z.string().max(1000).optional(),
 });
 export type StorySettings = z.infer<typeof SettingsFieldsSchema>;
 
@@ -152,16 +159,20 @@ export interface ProviderRecord {
   updatedAt: string;
 }
 
-/** A cloned voice: a reference clip (plus optional transcript / style) owned by an audio provider. */
+/**
+ * A voice owned by an audio provider: either a clone of a reference clip (plus optional transcript / style),
+ * or a designed voice described in words (`style`), with no clip.
+ */
 export interface Voice {
   id: string;
   providerId: string;
   name: string;
-  /** Reference audio, relative to the storage root. */
-  filePath: string;
+  mode: VoiceMode;
+  /** Reference audio relative to the storage root; null for designed voices. */
+  filePath: string | null;
   /** What is said in the reference clip; improves cloning when the app supports it. */
   transcript: string;
-  /** Optional style / control instruction, e.g. "warm, slow storyteller". */
+  /** Control instruction: the voice description for a designed voice, an optional style for a clone. */
   style: string;
   createdAt: string;
   updatedAt: string;

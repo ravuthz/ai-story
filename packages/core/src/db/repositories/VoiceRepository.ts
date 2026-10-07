@@ -1,4 +1,4 @@
-import type { Voice } from "../../domain/types";
+import type { Voice, VoiceMode } from "../../domain/types";
 import { BaseRepository, pickColumns } from "./BaseRepository";
 
 export class VoiceRepository extends BaseRepository<Voice> {
@@ -13,7 +13,9 @@ export class VoiceRepository extends BaseRepository<Voice> {
       id: row.id as string,
       providerId: row.provider_id as string,
       name: row.name as string,
-      filePath: row.file_path as string,
+      mode: row.mode as VoiceMode,
+      // Designed voices have no clip; the NOT NULL column stores "".
+      filePath: (row.file_path as string) || null,
       transcript: row.transcript as string,
       style: row.style as string,
       createdAt: row.created_at as string,
@@ -26,7 +28,8 @@ export class VoiceRepository extends BaseRepository<Voice> {
       id: ["id"],
       providerId: ["provider_id"],
       name: ["name"],
-      filePath: ["file_path"],
+      mode: ["mode"],
+      filePath: ["file_path", (v) => v ?? ""],
       transcript: ["transcript"],
       style: ["style"],
       createdAt: ["created_at"],

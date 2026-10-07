@@ -57,9 +57,17 @@ tool("list_voices", "Voice choices for an audio provider id (default provider wh
 );
 tool(
   "create_voice",
-  "Clone a voice for a Gradio audio provider (e.g. VoxCPM) from a local reference audio file",
-  { providerId: z.string(), filePath: z.string(), name: z.string(), transcript: z.string().optional(), style: z.string().optional() },
-  async ({ providerId, filePath, ...input }) => app.voices.create(providerId, input, new File([Bun.file(filePath)], filePath.split("/").pop()!)),
+  'Add a voice to a Gradio audio provider (e.g. VoxCPM): mode "clone" from a local reference audio file (filePath), or mode "design" from a description in `style`',
+  {
+    providerId: z.string(),
+    name: z.string(),
+    mode: z.enum(["clone", "design"]).optional(),
+    filePath: z.string().optional(),
+    transcript: z.string().optional(),
+    style: z.string().optional(),
+  },
+  async ({ providerId, filePath, ...input }) =>
+    app.voices.create(providerId, input, filePath ? new File([Bun.file(filePath)], filePath.split("/").pop()!) : undefined),
 );
 tool("set_default_provider", "Make a provider the default for its kind", { providerId: z.string() }, (a) => app.providerConfigs.setDefault(a.providerId));
 tool("list_projects", "List projects", {}, () => app.projects.list());

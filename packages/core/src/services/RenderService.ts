@@ -110,6 +110,8 @@ export class RenderService {
           text: narration,
           language: settings.narrationLanguage,
           voice: settings.voice,
+          voiceMode: settings.voiceMode,
+          voiceDescription: settings.voiceDescription,
           outPath: file(".mp3"),
         });
         this.scenes.update(scene.id, { audioPath: rel(path) });

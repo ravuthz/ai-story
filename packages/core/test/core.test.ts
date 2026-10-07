@@ -30,6 +30,8 @@ describe("unique blueprints", () => {
     const project = app.projects.create({ name: "Settings" });
     const story = app.stories.createDraft(project.id, "kid-story", { sceneCount: 3, durationSec: 30 });
     expect(story.settings).toMatchObject({ sceneCount: 3, durationSec: 30, narrationLanguage: "km", aspectRatio: "9:16" });
+    const withVoice = app.stories.createDraft(project.id, "kid-story", { voiceMode: "design", voice: "v1" });
+    expect(withVoice.settings).toMatchObject({ voiceMode: "design", voice: "v1" });
   });
 });
 
@@ -165,21 +167,21 @@ describe("cloned voices", () => {
     const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
     const voice = await app.voices.create(vox.id, { name: "Grandma", transcript: "Once upon a time", style: "warm" }, wav());
     expect(voice.filePath).toMatch(/^_voices\/.+\.wav$/);
-    expect(await Bun.file(app.storage.toAbsolute(voice.filePath)).exists()).toBe(true);
+    expect(await Bun.file(app.storage.toAbsolute(voice.filePath!)).exists()).toBe(true);
     expect(app.voices.list(vox.id).map((v) => v.name)).toContain("Grandma");
     expect(app.voices.resolve(voice.id)).toMatchObject({ name: "Grandma", transcript: "Once upon a time", style: "warm" });
 
     // Voice choices follow the selected audio provider.
-    expect(app.voices.options("voxcpm", "km")).toMatchObject({ cloning: true, voices: [{ value: voice.id, label: "Grandma" }] });
+    expect(app.voices.options("voxcpm", "km")).toMatchObject({ cloning: true, voices: [{ value: voice.id, label: "Grandma", mode: "clone" }] });
     expect(app.voices.options("edge", "km").voices.map((v) => v.value)).toContain("km-KH-SreymomNeural");
 
-    const oldPath = app.storage.toAbsolute(voice.filePath);
+    const oldPath = app.storage.toAbsolute(voice.filePath!);
     const updated = await app.voices.update(voice.id, { name: "Nana" }, wav("ref.mp3"));
     expect(updated).toMatchObject({ name: "Nana", transcript: "Once upon a time" });
     expect(await Bun.file(oldPath).exists()).toBe(false);
 
     await app.voices.delete(voice.id);
-    expect(await Bun.file(app.storage.toAbsolute(updated.filePath)).exists()).toBe(false);
+    expect(await Bun.file(app.storage.toAbsolute(updated.filePath!)).exists()).toBe(false);
     expect(app.voices.resolve(voice.id)).toBeNull();
   });
 
@@ -188,7 +190,56 @@ describe("cloned voices", () => {
     const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
     await expect(app.voices.create(edge.id, { name: "x" }, wav())).rejects.toThrow(/does not support/);
     await expect(app.voices.create(vox.id, { name: "x" }, undefined)).rejects.toThrow(/required/);
+    await expect(app.voices.create(vox.id, { name: "x", mode: "design" }, undefined)).rejects.toThrow(/Describe the voice/);
     await expect(app.voices.create(vox.id, { name: "x" }, wav("notes.txt"))).rejects.toThrow(/Unsupported audio/);
+  });
+
+  test("designed voices need only a description and send no clip", async () => {
+    const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
+    const designed = await app.voices.create(vox.id, { name: "Old monk", mode: "design", style: "an elderly man, deep calm voice", transcript: "ignored" }, undefined);
+    expect(designed).toMatchObject({ mode: "design", filePath: null });
+    expect(app.voices.resolve(designed.id)).toEqual({ name: "Old monk", mode: "design", filePath: null, transcript: "", style: "an elderly man, deep calm voice" });
+    expect(app.voices.options("voxcpm", "km").voices).toContainEqual({ value: designed.id, label: "Old monk", mode: "design" });
+
+    // A story set to cloned narration refuses a designed voice (checked before any network call).
+    const narrate = (voiceMode: "clone" | "design") =>
+      app.providers.get("audio", "voxcpm").synthesize({ text: "hi", language: "en", voice: designed.id, voiceMode, outPath: "/tmp/ai-story-test/v.mp3" });
+    await expect(narrate("clone")).rejects.toThrow(/"Old monk" is a designed voice, but the story is set to use a cloned voice/);
+
+    // design → clone needs a clip; clone → design drops it.
+    await expect(app.voices.update(designed.id, { mode: "clone" })).rejects.toThrow(/reference audio/);
+    const cloned = await app.voices.update(designed.id, { mode: "clone" }, wav());
+    expect(cloned.filePath).toMatch(/^_voices\//);
+    const back = await app.voices.update(designed.id, { mode: "design" });
+    expect(back.filePath).toBeNull();
+    expect(await Bun.file(app.storage.toAbsolute(cloned.filePath!)).exists()).toBe(false);
+    await app.voices.delete(designed.id);
+  });
+
+  test("a provider's default voice is a selected clone or a required description", async () => {
+    const vox = new ProviderRepository(app.db).findBySlug("audio", "voxcpm")!;
+    const clone = await app.voices.create(vox.id, { name: "Narrator" }, wav());
+    const designed = await app.voices.create(vox.id, { name: "Old design", mode: "design", style: "deep voice" }, undefined);
+
+    expect(() => app.voices.checkDefault(vox.id, { mode: "design", description: "  " })).toThrow(/voice description/);
+    expect(() => app.voices.checkDefault(vox.id, { mode: "clone" })).toThrow(/Select one of this provider's cloned voices/);
+    expect(() => app.voices.checkDefault(vox.id, { mode: "clone", voiceId: designed.id })).toThrow(/cloned voices/);
+
+    const pick = app.voices.checkDefault(vox.id, { mode: "clone", voiceId: clone.id, description: "ignored" });
+    expect(pick).toEqual({ mode: "clone", voiceId: clone.id, description: undefined });
+    app.providerConfigs.update(vox.id, { config: { defaultVoice: pick } });
+    expect(app.voices.options("voxcpm", "km").defaultVoice).toMatchObject({ mode: "clone", voiceId: clone.id, voiceName: "Narrator" });
+    // Other config is untouched by saving the default voice.
+    expect((new ProviderRepository(app.db).getById(vox.id).config.connections as unknown[]).length).toBe(3);
+
+    // A story asking for a designed voice with no description anywhere is refused before any network call.
+    await expect(
+      app.providers.get("audio", "voxcpm").synthesize({ text: "hi", language: "en", voiceMode: "design", outPath: "/tmp/ai-story-test/d.mp3" }),
+    ).rejects.toThrow(/needs a voice description/);
+
+    app.providerConfigs.update(vox.id, { config: { defaultVoice: {} } });
+    await app.voices.delete(clone.id);
+    await app.voices.delete(designed.id);
   });
 
   test("deleting a provider removes its voices and files", async () => {
@@ -197,6 +248,6 @@ describe("cloned voices", () => {
     app.providerConfigs.delete(created.id);
     await Bun.sleep(20);
     expect(app.voices.resolve(voice.id)).toBeNull();
-    expect(await Bun.file(app.storage.toAbsolute(voice.filePath)).exists()).toBe(false);
+    expect(await Bun.file(app.storage.toAbsolute(voice.filePath!)).exists()).toBe(false);
   });
 });
