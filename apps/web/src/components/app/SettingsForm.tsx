@@ -52,13 +52,17 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
   const { data: voices } = useVoices();
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
   const language = value.narrationLanguage ?? "km";
-  // Every scene is `sceneSec` long, so Duration = Scenes × Sec / scene.
+  // Duration = Scenes × Sec / scene; editing any one of them recalculates the others.
   const [sceneSec, setSceneSec] = useState(DEFAULT_SCENE_SEC);
   const totalFor = (scenes: number, sec: number) => clamp(scenes * sec, MIN_DURATION, MAX_DURATION);
   const setScenes = (v: number) => {
     const sceneCount = clamp(v, 1, MAX_SCENES);
     onChange({ ...value, sceneCount, durationSec: totalFor(sceneCount, sceneSec) });
   };
+  // Sec / scene stays fixed, so a new duration changes the scene count.
+  // The typed value is kept as-is (clamping mid-typing would fight the user); only the scene count follows it.
+  const setDuration = (durationSec: number) =>
+    onChange({ ...value, durationSec, sceneCount: clamp(durationSec / sceneSec, 1, MAX_SCENES) });
   const setSec = (v: number) => {
     const sec = clamp(v, 1, 600);
     setSceneSec(sec);
@@ -70,7 +74,7 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <NumberField label="Scenes" min={1} max={MAX_SCENES} value={value.sceneCount} onChange={setScenes} />
         <NumberField label="Sec / scene" min={1} max={600} value={sceneSec} onChange={setSec} />
-        <NumberField label="Duration (sec)" value={value.durationSec} onChange={() => {}} disabled />
+        <NumberField label="Duration (sec)" min={MIN_DURATION} max={MAX_DURATION} value={value.durationSec} onChange={setDuration} />
         <SelectField label="Narration" value={language} options={LANGUAGES} onChange={(v) => onChange({ ...value, narrationLanguage: v as "km" | "en", voice: undefined })} />
         <SelectField label="Aspect ratio" value={value.aspectRatio ?? "9:16"} options={ASPECTS} onChange={(v) => set("aspectRatio", v as SettingsInput["aspectRatio"])} />
       </div>
