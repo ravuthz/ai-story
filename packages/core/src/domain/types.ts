@@ -10,8 +10,9 @@ export const CATEGORY_IDS = [
   "kid-story",
 ] as const;
 
-export const CategoryIdSchema = z.enum(CATEGORY_IDS);
-export type CategoryId = z.infer<typeof CategoryIdSchema>;
+/** Category ids are stored in the database (CATEGORY_IDS are the built-in ones); existence is checked by the registry. */
+export const CategoryIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/, "lowercase letters, digits and - (max 40)");
+export type CategoryId = string;
 
 export const LanguageSchema = z.enum(["km", "en"]);
 export type Language = z.infer<typeof LanguageSchema>;

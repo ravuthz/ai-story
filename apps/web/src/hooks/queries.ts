@@ -18,6 +18,7 @@ export const keys = {
 };
 
 export const useCategories = () => useQuery({ queryKey: keys.categories, queryFn: api.categories });
+export const useTemplateDefaults = () => useQuery({ queryKey: ["category-template-defaults"], queryFn: api.templateDefaults, staleTime: Infinity });
 export const useProviders = () => useQuery({ queryKey: keys.providers, queryFn: api.providers, staleTime: 60_000 });
 export const useProviderConfigs = () => useQuery({ queryKey: keys.providerConfigs, queryFn: api.providerConfigs });
 export const useProviderDrivers = () => useQuery({ queryKey: keys.providerDrivers, queryFn: api.providerDrivers, staleTime: Infinity });

@@ -40,6 +40,26 @@ export const ScenePatchSchema = z.object({
   durationSec: z.number().min(1).max(600).optional(),
 });
 
+const PoolSchema = z.array(z.string().max(300)).max(500);
+const CategoryFieldsSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  emoji: z.string().max(16).optional(),
+  description: z.string().max(1000).optional(),
+  imageStyle: z.string().max(1000).optional(),
+  pools: z.object({ themes: PoolSchema, settings: PoolSchema, protagonists: PoolSchema, twists: PoolSchema, tones: PoolSchema }),
+  styleSuggestions: z.array(z.string().max(80)).max(100).optional(),
+  storyPrompt: z.string().max(20000).optional(),
+  imagePrompt: z.string().max(4000).optional(),
+});
+export const CreateCategorySchema = CategoryFieldsSchema.extend({ id: CategoryIdSchema });
+export type CreateCategoryInput = z.infer<typeof CreateCategorySchema>;
+/** The id is fixed after creation (stories refer to it). */
+export const UpdateCategorySchema = CategoryFieldsSchema.partial().extend({
+  storyPrompt: z.string().trim().min(1).max(20000).optional(),
+  imagePrompt: z.string().trim().min(1).max(4000).optional(),
+});
+export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;
+
 export const GenerateStoryJobSchema = z.object({ storyId: z.string(), render: z.boolean().optional() });
 export const RenderJobSchema = RenderOptionsSchema.extend({ storyId: z.string() });
 

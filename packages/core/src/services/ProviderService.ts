@@ -217,12 +217,7 @@ export class ProviderService {
   }
 
   private once(key: string, step: () => void): void {
-    const done = this.db.sql.query<{ value: string }, { key: string }>("SELECT value FROM meta WHERE key = $key").get({ key });
-    if (done) return;
-    this.db.transaction(() => {
-      step();
-      this.db.sql.query("INSERT INTO meta (key, value) VALUES ($key, $value)").run({ key, value: nowIso() });
-    });
+    this.db.runOnce(key, step);
   }
 
   /** Imports the providers that used to come from .env and providers.config.json. */

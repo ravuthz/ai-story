@@ -11,9 +11,16 @@ export interface CategoryPools {
 export interface CategoryDefinition {
   id: CategoryId;
   label: string;
+  emoji: string;
   description: string;
   imageStyle: string;
   pools: CategoryPools;
+  /** Image-style chips suggested in story settings. */
+  styleSuggestions: string[];
+  /** Story prompt template with {{placeholders}}; the JSON output contract is appended automatically. */
+  storyPrompt: string;
+  /** Image prompt template; must contain {{scenePrompt}}. */
+  imagePrompt: string;
 }
 
 export type BlueprintSeeds = Record<keyof CategoryPools, string>;
@@ -32,6 +39,18 @@ export class Category {
   }
   get imageStyle(): string {
     return this.def.imageStyle;
+  }
+  get emoji(): string {
+    return this.def.emoji;
+  }
+  get styleSuggestions(): string[] {
+    return this.def.styleSuggestions;
+  }
+  get storyPrompt(): string {
+    return this.def.storyPrompt;
+  }
+  get imagePrompt(): string {
+    return this.def.imagePrompt;
   }
   get pools(): CategoryPools {
     return this.def.pools;

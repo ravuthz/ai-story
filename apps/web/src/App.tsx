@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/app/Sidebar";
 import { useJobEvents } from "@/hooks/useJobEvents";
 import { useRoute, type Route } from "@/hooks/useRoute";
+import { CategoriesPage } from "@/pages/CategoriesPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { ProjectPage } from "@/pages/ProjectPage";
@@ -17,6 +18,8 @@ function Page({ route }: { route: Route }) {
       return <JobsPage />;
     case "providers":
       return <ProvidersPage />;
+    case "categories":
+      return <CategoriesPage />;
     default:
       return <DashboardPage />;
   }

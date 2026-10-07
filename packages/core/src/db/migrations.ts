@@ -94,4 +94,21 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE voices ADD COLUMN mode TEXT NOT NULL DEFAULT 'clone';
   `,
+  `
+  CREATE TABLE categories (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    emoji TEXT NOT NULL DEFAULT '📖',
+    description TEXT NOT NULL DEFAULT '',
+    image_style TEXT NOT NULL DEFAULT '',
+    pools TEXT NOT NULL,
+    style_suggestions TEXT NOT NULL DEFAULT '[]',
+    story_prompt TEXT NOT NULL,
+    image_prompt TEXT NOT NULL,
+    built_in INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];

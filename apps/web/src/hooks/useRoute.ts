@@ -5,7 +5,8 @@ export type Route =
   | { page: "project"; id: string }
   | { page: "story"; id: string }
   | { page: "jobs" }
-  | { page: "providers" };
+  | { page: "providers" }
+  | { page: "categories" };
 
 const subscribe = (cb: () => void) => {
   window.addEventListener("hashchange", cb);
@@ -18,10 +19,11 @@ function parse(hash: string): Route {
   if (page === "stories" && id) return { page: "story", id };
   if (page === "jobs") return { page: "jobs" };
   if (page === "providers") return { page: "providers" };
+  if (page === "categories") return { page: "categories" };
   return { page: "dashboard" };
 }
 
-/** Minimal hash router: #/projects/:id, #/stories/:id, #/jobs, #/providers */
+/** Minimal hash router: #/projects/:id, #/stories/:id, #/jobs, #/providers, #/categories */
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, () => window.location.hash);
   return parse(hash);
@@ -33,4 +35,5 @@ export const href = {
   story: (id: string) => `#/stories/${id}`,
   jobs: "#/jobs",
   providers: "#/providers",
+  categories: "#/categories",
 };

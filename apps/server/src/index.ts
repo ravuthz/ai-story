@@ -6,6 +6,7 @@ import { logger } from "hono/logger";
 import { relative } from "node:path";
 import { onError } from "./http";
 import { catalogRoutes } from "./routes/catalog";
+import { categoryRoutes } from "./routes/categories";
 import { jobRoutes } from "./routes/jobs";
 import { projectRoutes } from "./routes/projects";
 import { providerConfigRoutes } from "./routes/providers";
@@ -19,6 +20,7 @@ const server = new Hono()
   .use(logger())
   .use("/api/*", cors())
   .onError(onError)
+  .route("/api/categories", categoryRoutes(app))
   .route("/api", catalogRoutes(app))
   .route("/api/projects", projectRoutes(app))
   .route("/api/stories", storyRoutes(app))

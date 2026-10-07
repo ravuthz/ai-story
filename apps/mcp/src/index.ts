@@ -2,13 +2,14 @@
 import {
   App,
   BatchSchema,
-  CATEGORY_IDS,
+  CreateCategorySchema,
   CreateProjectSchema,
   CreateProviderSchema,
   CreateStorySchema,
   PartialSettingsSchema,
   RenderOptionsSchema,
   ScenePatchSchema,
+  UpdateCategorySchema,
   UpdateProviderSchema,
 } from "@ai-story/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -42,8 +43,12 @@ function tool<S extends z.ZodRawShape>(name: string, description: string, shape:
 
 const StoryId = { storyId: z.string() };
 
-tool("list_categories", `Story categories (${CATEGORY_IDS.join(", ")}) with counts and unique capacity`, {}, () =>
-  app.stories.stats(),
+tool("list_categories", "Story categories with counts and unique capacity", {}, () => app.stories.stats());
+tool("get_category", "A category's seeds, style suggestions and prompt templates", { categoryId: z.string() }, (a) => app.categoryConfigs.get(a.categoryId));
+tool("get_prompt_template_defaults", "Default story/image prompt templates and their {{placeholders}}", {}, () => app.categoryConfigs.templateDefaults());
+tool("create_category", "Add a category (seeds, style suggestions, optional prompt templates)", CreateCategorySchema.shape, (a) => app.categoryConfigs.create(a));
+tool("update_category", "Change a category's label, emoji, description, image style, seeds, style suggestions or prompt templates", { categoryId: z.string(), ...UpdateCategorySchema.shape }, ({ categoryId, ...patch }) =>
+  app.categoryConfigs.update(categoryId, patch),
 );
 tool("list_providers", "Text/image/audio/video providers and availability", {}, () => app.providers.describe());
 tool("list_provider_configs", "Stored provider configuration (secrets masked), with availability", {}, () => app.providerConfigs.list());

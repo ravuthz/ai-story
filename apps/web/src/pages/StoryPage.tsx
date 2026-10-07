@@ -98,7 +98,7 @@ export function StoryPage({ id }: { id: string }) {
                 <CardDescription>Durations, scenes, narration language and providers for this story.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
-                <SettingsForm value={settings} onChange={setSettings} />
+                <SettingsForm value={settings} onChange={setSettings} category={story.category} />
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => saveSettings.mutate(settings)} disabled={saveSettings.isPending}>
                     <Save /> Save settings

@@ -5,13 +5,38 @@ export type StoryWithScenes = Story & { scenes: Scene[] };
 export type RenderStep = "images" | "audios" | "videos" | "final";
 export type SettingsInput = Partial<StorySettings>;
 
+export interface CategoryPools {
+  themes: string[];
+  settings: string[];
+  protagonists: string[];
+  twists: string[];
+  tones: string[];
+}
 export interface CategoryInfo {
   id: CategoryId;
   label: string;
+  emoji: string;
   description: string;
   imageStyle: string;
+  pools: CategoryPools;
+  /** Image-style chips suggested in story settings. */
+  styleSuggestions: string[];
+  storyPrompt: string;
+  imagePrompt: string;
+  builtIn: boolean;
+  /** Unique blueprints the seeds allow. */
   capacity: number;
+  /** Stories in this category. */
   count: number;
+}
+export type CategoryInput = Partial<Omit<CategoryInfo, "builtIn" | "capacity" | "count">>;
+export interface TemplateDefaults {
+  storyPrompt: string;
+  imagePrompt: string;
+  storyPlaceholders: Record<string, string>;
+  imagePlaceholders: Record<string, string>;
+  requiredSeeds: string[];
+  outputContract: string;
 }
 export interface ProviderInfo {
   id: string;
@@ -104,6 +129,10 @@ class ApiClient {
   }
 
   categories = () => this.request<CategoryInfo[]>("GET", "/categories");
+  templateDefaults = () => this.request<TemplateDefaults>("GET", "/categories/template-defaults");
+  createCategory = (body: CategoryInput) => this.request<CategoryInfo>("POST", "/categories", body);
+  updateCategory = ({ id, ...body }: CategoryInput & { id: string }) => this.request<CategoryInfo>("PATCH", `/categories/${id}`, body);
+  deleteCategory = (id: string) => this.request<void>("DELETE", `/categories/${id}`);
   providers = () => this.request<{ defaults: Record<string, string>; providers: ProviderInfo[] }>("GET", "/providers");
   providerConfigs = () => this.request<ProviderConfig[]>("GET", "/provider-configs");
   providerDrivers = () => this.request<ProviderDriver[]>("GET", "/provider-configs/drivers");

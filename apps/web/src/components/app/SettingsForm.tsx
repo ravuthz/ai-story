@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useProviders, useVoiceOptions } from "@/hooks/queries";
+import { useCategories, useProviders, useVoiceOptions } from "@/hooks/queries";
 import { AudioLines, Sparkles } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProviderInfo, SettingsInput, VoiceOptions } from "@/lib/api";
@@ -17,6 +17,7 @@ const ASPECTS: Option[] = [
 ];
 const KINDS = ["text", "image", "audio", "video"] as const;
 const DEFAULT_SCENE_SEC = 10;
+/** Fallback chips when the form isn't tied to a category. */
 const STYLE_TAGS = [
   "cinematic",
   "highly detailed",
@@ -115,7 +116,10 @@ function VoiceField({ value, onChange, options }: { value: SettingsInput; onChan
 }
 
 /** Shared editor for per-story settings: used by "new story", "batch" and the story page. */
-export function SettingsForm({ value, onChange }: { value: SettingsInput; onChange: (next: SettingsInput) => void }) {
+export function SettingsForm({ value, onChange, category }: { value: SettingsInput; onChange: (next: SettingsInput) => void; category?: string }) {
+  const { data: categories } = useCategories();
+  // Each category suggests its own image styles (edited on the Categories page).
+  const styleTags = categories?.find((c) => c.id === category)?.styleSuggestions ?? STYLE_TAGS;
   const { data: providers } = useProviders();
   const { data: voiceOptions } = useVoiceOptions(value.providers?.audio, value.narrationLanguage ?? "km");
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
@@ -149,7 +153,7 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
       <div className="grid gap-2">
         <TextField label="Image style" value={value.imageStyle} onChange={(v) => set("imageStyle", v)} placeholder="cinematic, highly detailed, dramatic lighting" />
         <div className="flex flex-wrap gap-1.5">
-          {STYLE_TAGS.map((tag) => {
+          {styleTags.map((tag) => {
             const active = splitTags(value.imageStyle).some((t) => t.toLowerCase() === tag.toLowerCase());
             return (
               <Button key={tag} type="button" size="xs" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => set("imageStyle", toggleTag(value.imageStyle, tag))}>

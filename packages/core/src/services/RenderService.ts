@@ -96,7 +96,7 @@ export class RenderService {
         if (current.imagePath && !force) return;
         const category = this.categories.get(story.category);
         const path = await this.providers.get("image", settings.providers.image).generate({
-          prompt: this.prompts.imagePrompt(current.imagePrompt, settings.imageStyle, category.imageStyle),
+          prompt: this.prompts.imagePrompt(current.imagePrompt, settings.imageStyle, category),
           aspectRatio: settings.aspectRatio,
           outPath: file(".png"),
         });

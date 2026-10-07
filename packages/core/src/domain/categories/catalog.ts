@@ -1,10 +1,13 @@
+import { DEFAULT_IMAGE_PROMPT, DEFAULT_STORY_PROMPT } from "../../prompts/templates";
 import type { CategoryDefinition } from "./Category";
+
+type BuiltIn = Pick<CategoryDefinition, "id" | "label" | "description" | "imageStyle" | "pools">;
 
 /**
  * Seed pools per category. The cartesian product of the pools is the space of
  * unique blueprints: 10 × 10 × 10 × 10 × 4 = 40,000 combinations per category.
  */
-export const CATALOG: CategoryDefinition[] = [
+const BUILT_INS: BuiltIn[] = [
   {
     id: "horror-story",
     label: "Horror Story",
@@ -97,3 +100,28 @@ export const CATALOG: CategoryDefinition[] = [
     },
   },
 ];
+
+const EMOJI: Record<string, string> = {
+  "horror-story": "👻",
+  "love-story": "💞",
+  motivation: "🔥",
+  philosophy: "🪷",
+  quotes: "💬",
+  folklore: "🐉",
+  "kid-story": "🧸",
+};
+
+/** The global image-style chips the app suggested before styles were per category. */
+const COMMON_STYLES = ["cinematic", "highly detailed", "dramatic lighting", "photorealistic", "anime", "3D render", "watercolor", "oil painting", "Pixar style", "dark fantasy"];
+
+/**
+ * Built-in categories, imported once into the `categories` table (the database is the source of truth after that).
+ * Style suggestions = the category's own image style parts + the common chips.
+ */
+export const CATALOG: CategoryDefinition[] = BUILT_INS.map((c) => ({
+  ...c,
+  emoji: EMOJI[c.id] ?? "📖",
+  styleSuggestions: [...new Set([...c.imageStyle.split(",").map((s) => s.trim()).filter(Boolean), ...COMMON_STYLES])],
+  storyPrompt: DEFAULT_STORY_PROMPT,
+  imagePrompt: DEFAULT_IMAGE_PROMPT,
+}));

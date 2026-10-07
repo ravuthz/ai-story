@@ -1,4 +1,4 @@
-import { Activity, FolderOpen, LayoutDashboard, Monitor, Moon, Plus, Settings2, Sun } from "lucide-react";
+import { Activity, FolderOpen, LayoutDashboard, Monitor, Moon, Plus, Settings2, Shapes, Sun } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -74,6 +74,7 @@ export function Sidebar({ route }: { route: Route }) {
         >
           Jobs
         </NavLink>
+        <NavLink to={href.categories} active={route.page === "categories"} icon={Shapes}>Categories</NavLink>
         <NavLink to={href.providers} active={route.page === "providers"} icon={Settings2}>Providers</NavLink>
       </nav>
       <Separator className="my-3" />

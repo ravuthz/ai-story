@@ -31,6 +31,16 @@ blueprint (unique seeds) ──► text provider writes script (EN text + Khmer 
 - **Per-story settings:** scene count, total duration (split across scenes, and each scene can be edited), narration language (`km`/`en`), aspect ratio, image style, voice, and a provider override for each kind. A clip is extended automatically when its narration runs longer than the scene.
 - **Jobs:** generation and rendering run in a SQLite-backed queue that survives restarts. A batch of 1000 creates 1000 drafts, each with a reserved unique blueprint, then 1000 independent `generate-story` jobs that can be retried one by one.
 
+## Categories (database)
+
+Categories live in the `categories` table and are edited on the **Categories** page (or via `/api/categories` and the MCP tools). The 7 built-ins are imported once on first start; you can edit them, duplicate them or add your own. Each category has:
+
+- **Seeds**: themes, settings, main characters, twists and tones. Every story takes one of each, and a combination is never reused (capacity = the product of the list sizes).
+- **Style suggestions**: the image-style chips offered in a story's settings.
+- **Prompt templates**: the story prompt and the image prompt, with `{{placeholders}}` (`{{theme}}`, `{{setting}}`, `{{protagonist}}`, `{{twist}}`, `{{tone}}`, `{{sceneCount}}`, `{{narrationLanguage}}`… and `{{scenePrompt}}`, `{{style}}`, `{{categoryStyle}}` for images). The story prompt must use all five seeds and the image prompt must contain `{{scenePrompt}}`. The JSON output format is always appended, so a template can't break script parsing.
+
+A category that has stories can't be deleted, and its id can't change.
+
 ## Agent CLIs
 
 > Providers live in the database and are edited on the **Providers** page (or via the API / MCP tools below). The `.env` values in this section and `providers.config.json` are imported **once**, on the first start, and are ignored after that.
@@ -127,7 +137,7 @@ codex mcp add ai-story -- bun /abs/path/ai-story/apps/mcp/src/index.ts
 gemini mcp add ai-story bun /abs/path/ai-story/apps/mcp/src/index.ts
 ```
 
-Tools: `list_categories`, `list_providers`, `list_voices`, `create_voice`, `list_provider_configs`, `list_provider_types`, `create_provider`, `update_provider`, `set_default_provider`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
+Tools: `list_categories`, `get_category`, `create_category`, `update_category`, `get_prompt_template_defaults`, `list_providers`, `list_voices`, `create_voice`, `list_provider_configs`, `list_provider_types`, `create_provider`, `update_provider`, `set_default_provider`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
 
 ## Storage layout
 
@@ -147,6 +157,7 @@ storage/
 
 ```
 GET  /api/categories            GET  /api/providers
+GET  /api/categories/template-defaults   POST /api/categories   PATCH|DELETE /api/categories/:id
 GET  /api/provider-configs      POST /api/provider-configs  { type, slug, label?, config? }
 GET  /api/provider-configs/drivers   PATCH /api/provider-configs/:id { label?, enabled?, config? }
 POST /api/provider-configs/:id/default   DELETE /api/provider-configs/:id
@@ -167,12 +178,12 @@ GET  /files/<project>/<story>/… (generated assets)
 
 ```
 packages/core/src
-  domain/        types, zod schemas, category catalog, BlueprintGenerator
+  domain/        types, zod schemas, built-in category seeds (catalog), BlueprintGenerator
   db/            Database (bun:sqlite + migrations), BaseRepository<T> + repositories
   providers/     interfaces, ProviderRegistry, drivers (type → provider + config fields), seed (one-time .env import)
     cli/         CliRunner, CliAgent base + Codex/Gemini/Agy/Omp agents
     text/ image/ audio/ video/ mcp/
-  services/      ProjectService, ProviderService, StoryService, RenderService, JobQueue
+  services/      CategoryService, ProjectService, ProviderService, StoryService, RenderService, JobQueue
   storage/       ProjectStorage (project/story/{images,audios,videos})
   App.ts         composition root
 apps/server      Hono REST API + SSE + static files
@@ -181,4 +192,4 @@ apps/web         React + TypeScript + shadcn/ui (Base UI) + TanStack Query
 ```
 
 To add a provider, implement `ImageProvider` / `AudioProvider` / `VideoProvider` / `TextProvider` (or extend `CliAgent`, `RemoteVideoProvider` or `BaseProvider`) and add a driver for it in `providers/drivers.ts`; it then shows up under **Add** on the Providers page.
-To add a category, add an entry to `domain/categories/catalog.ts` and its id to `CATEGORY_IDS`.
+To add a category, use the Categories page (or `POST /api/categories`); `domain/categories/catalog.ts` only seeds the built-ins on first start.

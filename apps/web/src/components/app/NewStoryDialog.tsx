@@ -3,7 +3,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAction, useCategories } from "@/hooks/queries";
 import { api, type CategoryId, type SettingsInput } from "@/lib/api";
-import { categoryEmoji } from "./badges";
 import { NumberField, SelectField } from "./fields";
 import { FormDialog } from "./FormDialog";
 import { DEFAULT_SETTINGS, SettingsForm } from "./SettingsForm";
@@ -43,7 +42,7 @@ export function NewStoryDialog({ projectId, open, onOpenChange }: { projectId: s
         <SelectField
           label="Category"
           value={category}
-          options={categories.map((c) => ({ value: c.id, label: `${categoryEmoji(c.id)} ${c.label}` }))}
+          options={categories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.label}` }))}
           onChange={(v) => setCategory(v as CategoryId)}
         />
         <NumberField
@@ -54,7 +53,7 @@ export function NewStoryDialog({ projectId, open, onOpenChange }: { projectId: s
           onChange={(v) => setCount(Math.min(MAX_COUNT, Math.max(1, Math.round(v) || 1)))}
         />
       </div>
-      <SettingsForm value={settings} onChange={setSettings} />
+      <SettingsForm value={settings} onChange={setSettings} category={category} />
       <div className="flex items-center gap-2">
         <Switch id="render" checked={render} onCheckedChange={setRender} />
         <Label htmlFor="render">Render images, narration and video after the script</Label>

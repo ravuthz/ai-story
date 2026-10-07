@@ -1,4 +1,5 @@
 import type { Category } from "../domain/categories/Category";
+import { MOTION_LIST, renderTemplate, STORY_OUTPUT_CONTRACT } from "./templates";
 import { MOTION_TYPES, type StoryBlueprint, type StorySettings } from "../domain/types";
 
 const LANGUAGE_NAMES = { km: "Khmer (ខ្មែរ, natural spoken Khmer script)", en: "English" } as const;
@@ -40,37 +41,32 @@ export const STORY_JSON_SCHEMA = {
   },
 } as const;
 
-/** Builds the LLM prompt for a story from its category, blueprint and settings. */
+/** Builds the LLM prompts from the category's templates, the story's blueprint and its settings. */
 export class StoryPromptBuilder {
   build(category: Category, blueprint: StoryBlueprint, settings: StorySettings): string {
     const perScene = Math.round(settings.durationSec / settings.sceneCount);
     // Rough speaking rates so narration fits each scene's duration.
     const words = settings.narrationLanguage === "km" ? Math.round(perScene * 2.2) : Math.round(perScene * 2.5);
-
-    return `You are an award-winning ${category.label.toLowerCase()} writer creating a short narrated video story.
-
-STORY SEEDS (must all be used, this combination makes the story unique):
-- Theme: ${blueprint.theme}
-- Setting: ${blueprint.setting}
-- Main character: ${blueprint.protagonist}
-- Twist / ending: ${blueprint.twist}
-- Tone: ${blueprint.tone}
-
-REQUIREMENTS:
-- Category: ${category.label} — ${category.description}
-- Exactly ${settings.sceneCount} scenes, about ${perScene} seconds each (total ~${settings.durationSec}s).
-- "text": the scene in English (2-4 sentences).
-- "narration": the voice-over for the scene in ${LANGUAGE_NAMES[settings.narrationLanguage]}, roughly ${words} words, meant to be read aloud.
-- "imagePrompt": an English visual description for an image model — subject, action, environment, camera angle, lighting. No text in image. Keep character appearance consistent across scenes.
-- "motion": one of ${MOTION_TYPES.join(", ")} matching the mood of the scene.
-- "title", "synopsis" (1-2 sentences) and "moral" (one line, may be empty for horror) in English.
-- Original content only; no real people.
-
-Respond with ONLY a JSON object, no markdown, matching:
-{"title": string, "synopsis": string, "moral": string, "scenes": [{"text": string, "narration": string, "imagePrompt": string, "motion": string}]}`;
+    const body = renderTemplate(category.storyPrompt, {
+      theme: blueprint.theme,
+      setting: blueprint.setting,
+      protagonist: blueprint.protagonist,
+      twist: blueprint.twist,
+      tone: blueprint.tone,
+      categoryLabel: category.label,
+      categoryLabelLower: category.label.toLowerCase(),
+      categoryDescription: category.description,
+      sceneCount: settings.sceneCount,
+      perSceneSec: perScene,
+      durationSec: settings.durationSec,
+      narrationLanguage: LANGUAGE_NAMES[settings.narrationLanguage],
+      narrationWords: words,
+      motions: MOTION_LIST,
+    });
+    return `${body.trim()}\n\n${STORY_OUTPUT_CONTRACT}`;
   }
 
-  imagePrompt(scenePrompt: string, style: string, categoryStyle: string): string {
-    return `${scenePrompt}. Style: ${style}, ${categoryStyle}.`;
+  imagePrompt(scenePrompt: string, style: string, category: Category): string {
+    return renderTemplate(category.imagePrompt, { scenePrompt, style, categoryStyle: category.imageStyle });
   }
 }

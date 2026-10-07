@@ -6,10 +6,12 @@ import { ProviderRepository } from "./db/repositories/ProviderRepository";
 import { VoiceRepository } from "./db/repositories/VoiceRepository";
 import { SceneRepository } from "./db/repositories/SceneRepository";
 import { StoryRepository } from "./db/repositories/StoryRepository";
-import { categoryRegistry } from "./domain/categories/CategoryRegistry";
+import { CategoryRepository } from "./db/repositories/CategoryRepository";
+import { CategoryRegistry } from "./domain/categories/CategoryRegistry";
 import { BatchSchema, GenerateStoryJobSchema, RenderJobSchema } from "./domain/schemas";
 import { ProviderRegistry } from "./providers/ProviderRegistry";
 import { JobQueue } from "./services/JobQueue";
+import { CategoryService } from "./services/CategoryService";
 import { ProjectService } from "./services/ProjectService";
 import { ProviderService } from "./services/ProviderService";
 import { VoiceService } from "./services/VoiceService";
@@ -21,7 +23,10 @@ import { ProjectStorage } from "./storage/ProjectStorage";
 export class App {
   readonly db: Database;
   readonly storage: ProjectStorage;
-  readonly categories = categoryRegistry;
+  /** Live categories used for generation. */
+  readonly categories = new CategoryRegistry();
+  /** Category configuration (database-backed); edits are applied to `categories` immediately. */
+  readonly categoryConfigs: CategoryService;
   /** Live providers used for generation. */
   readonly providers = new ProviderRegistry();
   /** Provider configuration (database-backed); edits are applied to `providers` immediately. */
@@ -46,6 +51,8 @@ export class App {
     const projectRepo = new ProjectRepository(this.db);
     const storyRepo = new StoryRepository(this.db);
     const sceneRepo = new SceneRepository(this.db);
+    this.categoryConfigs = new CategoryService(new CategoryRepository(this.db), this.db, this.categories, (category) => storyRepo.count({ category }));
+    this.categoryConfigs.init();
 
     this.projects = new ProjectService(projectRepo, storyRepo, this.storage);
     this.stories = new StoryService(storyRepo, sceneRepo, projectRepo, this.categories, this.providers, this.storage);

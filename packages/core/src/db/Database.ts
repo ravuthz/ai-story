@@ -17,6 +17,16 @@ export class Database {
     return this.sql.transaction(fn)();
   }
 
+  /** Runs a one-time data step (recorded in `meta` under `key`) in a transaction. Never rename an applied key. */
+  runOnce(key: string, step: () => void): void {
+    const done = this.sql.query<{ value: string }, { key: string }>("SELECT value FROM meta WHERE key = $key").get({ key });
+    if (done) return;
+    this.transaction(() => {
+      step();
+      this.sql.query("INSERT INTO meta (key, value) VALUES ($key, $value)").run({ key, value: new Date().toISOString() });
+    });
+  }
+
   private migrate(): void {
     this.sql.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY)");
     const applied = new Set(

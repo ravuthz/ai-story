@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { useCategories } from "@/hooks/queries";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -16,23 +17,14 @@ export function StatusBadge({ status }: { status: string }) {
   return <Badge className={cn("capitalize", STATUS_STYLES[status])}>{status}</Badge>;
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  "horror-story": "👻",
-  "love-story": "💞",
-  motivation: "🔥",
-  philosophy: "🪷",
-  quotes: "💬",
-  folklore: "🐉",
-  "kid-story": "🧸",
-};
-
-export const categoryEmoji = (id: string) => CATEGORY_EMOJI[id] ?? "📖";
-
+/** Shows a category's emoji and label (from the database; falls back to the id while loading). */
 export function CategoryBadge({ category }: { category: string }) {
+  const { data: categories } = useCategories();
+  const info = categories?.find((c) => c.id === category);
   return (
     <Badge variant="outline" className="gap-1">
-      <span>{categoryEmoji(category)}</span>
-      {category}
+      <span>{info?.emoji ?? "📖"}</span>
+      {info?.label ?? category}
     </Badge>
   );
 }

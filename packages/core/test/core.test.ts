@@ -6,6 +6,7 @@ import { SECRET_MASK } from "../src/services/ProviderService";
 import { CATEGORY_IDS } from "../src/domain/types";
 import { renderArgs } from "../src/providers/mcp/McpProviders";
 import { extractJson } from "../src/utils/text";
+import { StoryPromptBuilder } from "../src/prompts/StoryPromptBuilder";
 
 const app = new App({ ...config, databasePath: ":memory:", storageDir: "/tmp/ai-story-test" });
 
@@ -249,5 +250,55 @@ describe("cloned voices", () => {
     await Bun.sleep(20);
     expect(app.voices.resolve(voice.id)).toBeNull();
     expect(await Bun.file(app.storage.toAbsolute(voice.filePath!)).exists()).toBe(false);
+  });
+});
+
+describe("categories in the database", () => {
+  const pools = { themes: ["a lost key"], settings: ["a lighthouse"], protagonists: ["a keeper"], twists: ["it was a dream"], tones: ["calm", "eerie"] };
+
+  test("built-ins are imported with emoji, style suggestions and default templates", () => {
+    const horror = app.categoryConfigs.get("horror-story");
+    expect(horror).toMatchObject({ emoji: "👻", builtIn: true });
+    expect(horror.styleSuggestions).toEqual(expect.arrayContaining(["moody fog", "cinematic"]));
+    expect(horror.storyPrompt).toContain("{{theme}}");
+  });
+
+  test("create a category, generate with its templates, edit and delete", async () => {
+    const created = app.categoryConfigs.create({
+      id: "sci-fi",
+      label: "Sci-Fi",
+      emoji: "🚀",
+      pools: { ...pools, themes: ["a lost key", " a lost key ", ""] },
+      styleSuggestions: ["neon", "neon", "retro future"],
+      storyPrompt: "Write sci-fi about {{theme}} in {{setting}} with {{protagonist}}; twist {{twist}}; tone {{tone}}; {{sceneCount}} scenes.",
+      imagePrompt: "{{scenePrompt}} | {{categoryStyle}} | {{style}}",
+    });
+    // Lists are trimmed and de-duplicated.
+    expect(created.pools.themes).toEqual(["a lost key"]);
+    expect(created.styleSuggestions).toEqual(["neon", "retro future"]);
+    expect(app.categories.get("sci-fi").capacity).toBe(2);
+
+    const project = app.projects.create({ name: "Sci-fi project" });
+    const story = app.stories.createDraft(project.id, "sci-fi", { sceneCount: 3 });
+    const prompt = new StoryPromptBuilder().build(app.categories.get("sci-fi"), story.blueprint, story.settings);
+    expect(prompt).toStartWith("Write sci-fi about a lost key in a lighthouse with a keeper; twist it was a dream;");
+    expect(prompt).toContain("3 scenes.");
+    expect(prompt).toContain('Respond with ONLY a JSON object'); // contract always appended
+
+    const updated = app.categoryConfigs.update("sci-fi", { imageStyle: "chrome and neon", imagePrompt: "{{scenePrompt}} in {{categoryStyle}}" });
+    expect(new StoryPromptBuilder().imagePrompt("a ship", "x", app.categories.get("sci-fi"))).toBe("a ship in chrome and neon");
+    expect(updated.label).toBe("Sci-Fi");
+
+    expect(() => app.categoryConfigs.delete("sci-fi")).toThrow(/has 1 stories/);
+    await app.stories.delete(story.id);
+    app.categoryConfigs.delete("sci-fi");
+    expect(() => app.categories.get("sci-fi")).toThrow(/Unknown category/);
+  });
+
+  test("templates must keep what generation depends on", () => {
+    expect(() => app.categoryConfigs.update("quotes", { storyPrompt: "Write a quote about {{theme}}" })).toThrow(/missing \{\{setting\}\}, \{\{protagonist\}\}, \{\{twist\}\}, \{\{tone\}\}/);
+    expect(() => app.categoryConfigs.update("quotes", { imagePrompt: "a pretty picture" })).toThrow(/\{\{scenePrompt\}\}/);
+    expect(() => app.categoryConfigs.update("quotes", { pools: { ...pools, tones: [" "] } })).toThrow(/at least one tone/);
+    expect(() => app.categoryConfigs.create({ id: "quotes", label: "Dup", pools })).toThrow(/already exists/);
   });
 });
