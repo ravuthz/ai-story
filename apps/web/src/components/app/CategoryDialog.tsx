@@ -1,4 +1,5 @@
-import { RotateCcw, X } from "lucide-react";
+import { ClipboardCopy, ClipboardPaste, RotateCcw, X } from "lucide-react";
+import { toast } from "sonner";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { keys, useAction, useTemplateDefaults } from "@/hooks/queries";
 import { api, type CategoryInfo, type CategoryPools } from "@/lib/api";
+import { CATEGORY_JSON_FORMAT, parseCategoryJson, type CategoryJson } from "@/lib/categoryJson";
 import { Field, TextField } from "./fields";
 import { FormDialog } from "./FormDialog";
 
@@ -161,6 +163,61 @@ export function CategoryDialog({
   const ready =
     !!label.trim() && (category || /^[a-z0-9][a-z0-9-]{0,39}$/.test(id)) && !emptyPools.length && !!story.trim() && !!image.trim() && templatesOk;
 
+  // --- Copy / paste the whole form as JSON (same shape both ways) ---
+  const [pasteBox, setPasteBox] = useState(false);
+  const formJson = (): CategoryJson => ({
+    format: CATEGORY_JSON_FORMAT,
+    id: category?.id ?? id,
+    label,
+    emoji,
+    description,
+    imageStyle,
+    pools: parsedPools,
+    styleSuggestions: styles,
+    storyPrompt: story,
+    imagePrompt: image,
+  });
+  const copyJson = async () => {
+    const text = JSON.stringify(formJson(), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Category JSON copied", { description: ready ? undefined : "Note: the form is not complete yet" });
+    } catch {
+      toast.error("Couldn't access the clipboard");
+    }
+  };
+  const applyJson = (text: string) => {
+    const parsed = parseCategoryJson(text, defaults?.requiredSeeds ?? ["theme", "setting", "protagonist", "twist", "tone"]);
+    if (!parsed.ok) {
+      toast.error("Not a valid category JSON", { description: parsed.errors.slice(0, 6).join(" · ") + (parsed.errors.length > 6 ? ` · +${parsed.errors.length - 6} more` : "") });
+      return false;
+    }
+    const v = parsed.value;
+    // The id of an existing category is fixed; a new one takes the pasted id.
+    if (!category && v.id) setId(v.id);
+    setLabel(v.label);
+    setEmoji(v.emoji);
+    setDescription(v.description);
+    setImageStyle(v.imageStyle);
+    setPools(Object.fromEntries(POOLS.map(({ key }) => [key, v.pools[key].join("\n")])) as Record<keyof CategoryPools, string>);
+    setStyles(v.styleSuggestions);
+    setStoryPrompt(v.storyPrompt);
+    setImagePrompt(v.imagePrompt);
+    toast.success("Pasted into the form", {
+      description: category && v.id && v.id !== category.id ? `Kept id "${category.id}" (ids can't change). Review, then save.` : "Review, then save.",
+    });
+    setPasteBox(false);
+    return true;
+  };
+  const pasteJson = async () => {
+    try {
+      applyJson(await navigator.clipboard.readText());
+    } catch {
+      // Clipboard reading can be blocked by the browser; let the user paste with Ctrl/Cmd+V instead.
+      setPasteBox(true);
+    }
+  };
+
   const submit = () => {
     const body = { label, emoji, description, imageStyle, pools: parsedPools, styleSuggestions: styles, storyPrompt: story, imagePrompt: image };
     if (category) update.mutate({ id: category.id, ...body }, { onSuccess: () => onOpenChange(false) });
@@ -179,6 +236,29 @@ export function CategoryDialog({
       onSubmit={submit}
       className="max-h-[90vh] w-[90vw] max-w-[90vw] overflow-y-auto sm:max-w-4xl"
     >
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={copyJson}>
+          <ClipboardCopy /> Copy JSON
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={pasteJson}>
+          <ClipboardPaste /> Paste JSON
+        </Button>
+        <span className="text-xs text-muted-foreground">Copy this category as JSON, or fill the form from a copied category.</span>
+      </div>
+      {pasteBox && (
+        <Field label="Paste category JSON here" hint="The browser blocked reading the clipboard; press Ctrl/Cmd+V in this box.">
+          <Textarea
+            autoFocus
+            rows={3}
+            className="font-mono text-xs"
+            placeholder={`{ "format": "${CATEGORY_JSON_FORMAT}", "label": "…", "pools": { … }, … }`}
+            onPaste={(e) => {
+              e.preventDefault();
+              applyJson(e.clipboardData.getData("text"));
+            }}
+          />
+        </Field>
+      )}
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
