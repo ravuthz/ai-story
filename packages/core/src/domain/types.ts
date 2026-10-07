@@ -21,6 +21,7 @@ export type AspectRatio = z.infer<typeof AspectRatioSchema>;
 
 export const ProviderKindSchema = z.enum(["text", "image", "audio", "video"]);
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
+export const PROVIDER_KINDS = ProviderKindSchema.options;
 
 const ProvidersSchema = z.object({
   text: z.string().optional(),
@@ -131,6 +132,22 @@ export interface Job {
   progress: number;
   message: string;
   error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A configured provider instance, stored in the `providers` table. */
+export interface ProviderRecord {
+  id: string;
+  kind: ProviderKind;
+  /** Id used by story settings (`settings.providers[kind]`); unique per kind and immutable. */
+  slug: string;
+  /** Driver that builds the provider (see providers/drivers.ts). */
+  type: string;
+  label: string;
+  enabled: boolean;
+  isDefault: boolean;
+  config: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

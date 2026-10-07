@@ -58,4 +58,24 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_jobs_status ON jobs(status);
   `,
+  `
+  CREATE TABLE meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE providers (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    type TEXT NOT NULL,
+    label TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    config TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (kind, slug)
+  );
+  `,
 ];

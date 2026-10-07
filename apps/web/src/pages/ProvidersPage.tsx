@@ -1,65 +1,118 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ProviderDialog } from "@/components/app/ProviderDialog";
 import { PageHeader } from "@/components/app/Sidebar";
-import { useProviders } from "@/hooks/queries";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { keys, useAction, useProviderConfigs } from "@/hooks/queries";
+import { api, type ProviderConfig, type ProviderKind } from "@/lib/api";
 
 const KINDS = [
-  { kind: "text", title: "Story writers", hint: "Headless agent CLIs: codex, claude, gemini, agy, omp (paths from .env)" },
-  { kind: "image", title: "Image", hint: "Codex CLI (local), Qwen-Image (Gradio), Gemini, or MCP" },
-  { kind: "audio", title: "Narration", hint: "Edge TTS has native Khmer voices; Gemini TTS; or MCP" },
-  { kind: "video", title: "Motion video", hint: "FFmpeg Ken Burns locally, Gradio image-to-video, or MCP" },
+  { kind: "text", tab: "Script", title: "Story writers", hint: "Headless agent CLIs (codex, claude, gemini, agy, omp), any Gradio app, or MCP" },
+  { kind: "image", tab: "Image", title: "Image", hint: "Codex CLI (local), Gemini, any Gradio space / URL / local app (Qwen-Image…), or MCP" },
+  { kind: "audio", tab: "Audio", title: "Narration", hint: "Edge TTS (native Khmer voices), Gemini TTS, any Gradio TTS app (VoxCPM…), or MCP" },
+  { kind: "video", tab: "Video", title: "Motion video", hint: "FFmpeg Ken Burns locally, any Gradio image-to-video app, or MCP" },
 ] as const;
 
-const MCP_EXAMPLE = `// providers.config.json (project root)
-{
-  "mcp": [{
-    "id": "flux-mcp",
-    "kind": "image",
-    "server": { "command": "npx", "args": ["-y", "some-image-mcp"] },
-    "tool": "generate_image",
-    "arguments": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}" }
-  }]
-}`;
+const INVALIDATE = [keys.providers, keys.providerConfigs];
+
+function ProviderRow({ p, onEdit }: { p: ProviderConfig; onEdit: () => void }) {
+  const toggle = useAction(api.updateProvider, { invalidate: INVALIDATE });
+  const setDefault = useAction(api.setDefaultProvider, { success: `${p.label} is now the default`, invalidate: INVALIDATE });
+  const remove = useAction(api.deleteProvider, { success: `${p.label} deleted`, invalidate: INVALIDATE });
+  const status = !p.enabled ? "disabled" : p.available ? "ready" : "not configured";
+
+  return (
+    <div className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+      <Switch
+        checked={p.enabled}
+        disabled={p.isDefault || toggle.isPending}
+        onCheckedChange={(enabled) => toggle.mutate({ id: p.id, enabled })}
+        aria-label={p.enabled ? `Disable ${p.label}` : `Enable ${p.label}`}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="font-mono text-xs text-muted-foreground">{p.slug}</span> · {p.label}
+        {p.isDefault && <Badge className="ml-2">default</Badge>}
+        <span className="block truncate font-mono text-xs text-muted-foreground">{p.detail ?? p.driverLabel}</span>
+      </span>
+      <span className={p.enabled && p.available ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{status}</span>
+      <div className="flex shrink-0 gap-0.5">
+        {!p.isDefault && (
+          <Button size="icon-xs" variant="ghost" disabled={!p.enabled} onClick={() => setDefault.mutate(p.id)} aria-label="Make default" title="Make default">
+            <Star />
+          </Button>
+        )}
+        <Button size="icon-xs" variant="ghost" onClick={onEdit} aria-label="Edit" title="Edit">
+          <Pencil />
+        </Button>
+        {!p.isDefault && (
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            onClick={() => confirm(`Delete provider "${p.label}"? Stories that use "${p.slug}" will fall back to an error.`) && remove.mutate(p.id)}
+            aria-label="Delete"
+            title="Delete"
+          >
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function ProvidersPage() {
-  const { data } = useProviders();
+  const { data = [] } = useProviderConfigs();
+  const [tab, setTab] = useState<ProviderKind>("text");
+  const [dialog, setDialog] = useState<{ kind: ProviderKind; provider?: ProviderConfig } | null>(null);
 
   return (
     <>
-      <PageHeader title="Providers" description="Defaults come from .env; every story can override them in its settings." />
-      <div className="grid gap-6 p-8 lg:grid-cols-2">
+      <PageHeader title="Providers" description="Stored in the database and applied immediately; every story can override the defaults in its settings." />
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderKind)} className="p-8">
+        <TabsList>
+          {KINDS.map(({ kind, tab }) => (
+            <TabsTrigger key={kind} value={kind}>
+              {tab}
+              <span className="ml-1 text-xs text-muted-foreground tabular-nums">{data.filter((p) => p.kind === kind && p.enabled).length}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
         {KINDS.map(({ kind, title, hint }) => (
-          <Card key={kind}>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{hint}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {data?.providers
-                .filter((p) => p.kind === kind)
-                .map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                    <span className="min-w-0">
-                      <span className="font-mono text-xs text-muted-foreground">{p.id}</span> · {p.label}
-                      {data.defaults[kind] === p.id && <Badge className="ml-2">default</Badge>}
-                      {p.detail && <span className="block truncate font-mono text-xs text-muted-foreground">{p.detail}</span>}
-                    </span>
-                    <span className={p.available ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{p.available ? "ready" : "not configured"}</span>
-                  </div>
-                ))}
-            </CardContent>
-          </Card>
+          <TabsContent key={kind} value={kind}>
+            <Card>
+              <CardHeader>
+                <CardTitle>{title}</CardTitle>
+                <CardDescription>{hint}</CardDescription>
+                <CardAction>
+                  <Button size="sm" variant="outline" onClick={() => setDialog({ kind })}>
+                    <Plus /> Add
+                  </Button>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {data
+                  .filter((p) => p.kind === kind)
+                  .map((p) => (
+                    <ProviderRow key={p.id} p={p} onEdit={() => setDialog({ kind, provider: p })} />
+                  ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
         ))}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Add MCP media providers</CardTitle>
-            <CardDescription>Any MCP tool that returns an image/audio/video (inline, URL or file path) can be plugged in.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="overflow-x-auto rounded-md bg-muted p-4 text-xs">{MCP_EXAMPLE}</pre>
-          </CardContent>
-        </Card>
-      </div>
+      </Tabs>
+      {dialog && (
+        <ProviderDialog
+          key={dialog.provider?.id ?? `new-${dialog.kind}`}
+          kind={dialog.kind}
+          provider={dialog.provider}
+          open
+          onOpenChange={(open) => !open && setDialog(null)}
+        />
+      )}
     </>
   );
 }

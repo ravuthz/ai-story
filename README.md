@@ -31,9 +31,11 @@ blueprint (unique seeds) ──► text provider writes script (EN text + Khmer 
 - **Per-story settings:** scene count, total duration (split across scenes, and each scene can be edited), narration language (`km`/`en`), aspect ratio, image style, voice, and a provider override for each kind. A clip is extended automatically when its narration runs longer than the scene.
 - **Jobs:** generation and rendering run in a SQLite-backed queue that survives restarts. A batch of 1000 creates 1000 drafts, each with a reserved unique blueprint, then 1000 independent `generate-story` jobs that can be retried one by one.
 
-## Agent CLIs (`.env`)
+## Agent CLIs
 
-Every agent CLI is resolved from `.env`, so the app works even when it's started with a minimal `PATH` (MCP clients, GUI apps, launchd):
+> Providers live in the database and are edited on the **Providers** page (or via the API / MCP tools below). The `.env` values in this section and `providers.config.json` are imported **once**, on the first start, and are ignored after that.
+
+Every agent CLI is resolved from its configured executable path, so the app works even when it's started with a minimal `PATH` (MCP clients, GUI apps, launchd):
 
 ```ini
 CODEX_BIN=/opt/homebrew/bin/codex
@@ -52,6 +54,8 @@ AGENT_PATH=/opt/homebrew/bin:~/.bun/bin:~/.local/bin   # extra PATH for hooks/sh
 
 ## Providers
 
+Each provider is a row in the `providers` table: a **type** (driver), an **id** that stories refer to, a label, an enabled flag, whether it is the default for its kind, and the driver's settings (secrets are masked in API responses). One type can back several providers, e.g. two Qwen spaces or a second `claude` with another model. Changes apply to the running server immediately; restart the MCP server to pick them up there.
+
 | Kind  | id       | Notes |
 |-------|----------|-------|
 | text  | `codex`  | `codex exec` (read-only sandbox) |
@@ -60,29 +64,48 @@ AGENT_PATH=/opt/homebrew/bin:~/.bun/bin:~/.local/bin   # extra PATH for hooks/sh
 | text  | `agy`    | Antigravity `agy --print` (+ `--json-schema`) |
 | text  | `omp`    | `omp --print --no-session` |
 | image | `codex`  | Local Codex CLI `image_generation` tool, sandboxed to a scratch folder |
-| image | `qwen`   | Remote Qwen-Image via Gradio (`QWEN_GRADIO_URL`, HF Space id or URL) |
-| image | `gemini` | Gemini image API (`GEMINI_API_KEY`) |
+| image | `qwen`, `qwen-image-2-1`, `qwen-image-2-1-viggle`, `qwen-image-2-1-uncensored` | Qwen-Image spaces via Gradio |
+| image | `gemini` | Gemini image API (API key) |
 | audio | `edge`   | Edge neural TTS: `km-KH-SreymomNeural`, `km-KH-PisethNeural`, English voices |
 | audio | `gemini` | Gemini TTS |
 | video | `ffmpeg` | Local Ken Burns motion (zoom/pan) with fades, 30fps H.264 |
-| video | `gradio` | Remote image-to-video Gradio app (`VIDEO_GRADIO_URL`), muxed with narration |
-| any   | MCP      | Any MCP tool via `providers.config.json` (see below) |
+| audio | `voxcpm`, `voxcpm2-appkh`, `voxcpm-appkh` | VoxCPM 2 TTS via Gradio |
+| video | `gradio` | Remote image-to-video Gradio app, muxed with narration |
+| any   | Gradio   | Any Gradio app (types `gradio-text`, `gradio-image`, `gradio-audio`, `gradio-video`; see below) |
+| any   | MCP      | Any MCP tool (types `mcp-image`, `mcp-audio`, `mcp-video`; see below) |
 
-### MCP media providers
+### Gradio providers (HF Space, remote URL or local app)
 
-Create `providers.config.json` in the repo root:
+Every kind can use any Gradio app. `space` is an HF Space id (`owner/name`), a remote URL, or a local server (`http://127.0.0.1:7860`); `apiName` is the endpoint; `params` are its named parameters with `{{placeholders}}`; `valueMaps` translates a placeholder's value into what that app expects:
 
 ```json
 {
-  "mcp": [
-    {
-      "id": "my-image-mcp",
-      "kind": "image",
-      "server": { "command": "npx", "args": ["-y", "some-image-mcp"] },
-      "tool": "generate_image",
-      "arguments": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}" }
-    }
-  ]
+  "type": "gradio-image",
+  "slug": "qwen-uncensored",
+  "config": {
+    "space": "arudradey/qwen-image-2.1-uncensored-gguf",
+    "apiName": "/generate",
+    "params": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}", "randomize_seed": true },
+    "valueMaps": { "aspectRatio": { "9:16": "Portrait · 9:16 (768x1344)", "16:9": "Landscape · 16:9 (1344x768)", "1:1": "Square · 1:1 (1024x1024)" } }
+  }
+}
+```
+
+Placeholders: text `prompt` · image `prompt, aspectRatio, width, height, seed` · audio `text, language, voice` · video `prompt, imagePath, durationSec, seed`. Audio keeps the file type the app returns (e.g. `.wav`).
+
+### MCP media providers
+
+On the Providers page click **Add** on a card and pick an MCP type, or `POST /api/provider-configs`:
+
+```json
+{
+  "type": "mcp-image",
+  "slug": "my-image-mcp",
+  "config": {
+    "server": { "command": "npx", "args": ["-y", "some-image-mcp"] },
+    "tool": "generate_image",
+    "arguments": { "prompt": "{{prompt}}", "aspect_ratio": "{{aspectRatio}}" }
+  }
 }
 ```
 
@@ -96,7 +119,7 @@ codex mcp add ai-story -- bun /abs/path/ai-story/apps/mcp/src/index.ts
 gemini mcp add ai-story bun /abs/path/ai-story/apps/mcp/src/index.ts
 ```
 
-Tools: `list_categories`, `list_providers`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
+Tools: `list_categories`, `list_providers`, `list_provider_configs`, `list_provider_types`, `create_provider`, `update_provider`, `set_default_provider`, `list_projects`, `create_project`, `list_stories`, `get_story`, `generate_story`, `generate_batch`, `update_story_settings`, `update_scene`, `render_story`, `get_job`.
 
 ## Storage layout
 
@@ -116,6 +139,9 @@ storage/
 
 ```
 GET  /api/categories            GET  /api/providers         GET /api/voices
+GET  /api/provider-configs      POST /api/provider-configs  { type, slug, label?, config? }
+GET  /api/provider-configs/drivers   PATCH /api/provider-configs/:id { label?, enabled?, config? }
+POST /api/provider-configs/:id/default   DELETE /api/provider-configs/:id
 GET  /api/projects              POST /api/projects          DELETE /api/projects/:id
 GET  /api/stories?projectId&category&status&limit&offset
 POST /api/stories               { projectId, category, settings?, render? }
@@ -132,10 +158,10 @@ GET  /files/<project>/<story>/… (generated assets)
 packages/core/src
   domain/        types, zod schemas, category catalog, BlueprintGenerator
   db/            Database (bun:sqlite + migrations), BaseRepository<T> + repositories
-  providers/     interfaces, ProviderRegistry, ProviderFactory
+  providers/     interfaces, ProviderRegistry, drivers (type → provider + config fields), seed (one-time .env import)
     cli/         CliRunner, CliAgent base + Codex/Gemini/Agy/Omp agents
     text/ image/ audio/ video/ mcp/
-  services/      ProjectService, StoryService, RenderService, JobQueue
+  services/      ProjectService, ProviderService, StoryService, RenderService, JobQueue
   storage/       ProjectStorage (project/story/{images,audios,videos})
   App.ts         composition root
 apps/server      Hono REST API + SSE + static files
@@ -143,5 +169,5 @@ apps/mcp         MCP stdio server
 apps/web         React + TypeScript + shadcn/ui (Base UI) + TanStack Query
 ```
 
-To add a provider, implement `ImageProvider` / `AudioProvider` / `VideoProvider` / `TextProvider` (or extend `CliAgent`, `RemoteVideoProvider` or `BaseProvider`) and register it in `providers/factory.ts`.
+To add a provider, implement `ImageProvider` / `AudioProvider` / `VideoProvider` / `TextProvider` (or extend `CliAgent`, `RemoteVideoProvider` or `BaseProvider`) and add a driver for it in `providers/drivers.ts`; it then shows up under **Add** on the Providers page.
 To add a category, add an entry to `domain/categories/catalog.ts` and its id to `CATEGORY_IDS`.

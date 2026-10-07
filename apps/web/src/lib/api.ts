@@ -1,6 +1,6 @@
-import type { CategoryId, Job, Project, Scene, Story, StorySettings } from "@ai-story/core/types";
+import type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings } from "@ai-story/core/types";
 
-export type { CategoryId, Job, Project, Scene, Story, StorySettings };
+export type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings };
 export type StoryWithScenes = Story & { scenes: Scene[] };
 export type RenderStep = "images" | "audios" | "videos" | "final";
 export type SettingsInput = Partial<StorySettings>;
@@ -19,6 +19,31 @@ export interface ProviderInfo {
   label: string;
   available: boolean;
   detail?: string;
+}
+export type ProviderKind = ProviderInfo["kind"];
+export interface DriverField {
+  key: string;
+  label: string;
+  type: "text" | "secret" | "number" | "json" | "list";
+  placeholder?: string;
+  hint?: string;
+  required?: boolean;
+}
+export interface ProviderDriver {
+  type: string;
+  kind: ProviderKind;
+  label: string;
+  description: string;
+  fields: DriverField[];
+}
+export type ProviderConfig = ProviderRecord & { available: boolean; detail?: string; driverLabel: string };
+export interface ProviderInput {
+  type: string;
+  slug: string;
+  label?: string;
+  enabled?: boolean;
+  isDefault?: boolean;
+  config?: Record<string, unknown>;
 }
 export interface Page<T> {
   total: number;
@@ -54,6 +79,13 @@ class ApiClient {
 
   categories = () => this.request<CategoryInfo[]>("GET", "/categories");
   providers = () => this.request<{ defaults: Record<string, string>; providers: ProviderInfo[] }>("GET", "/providers");
+  providerConfigs = () => this.request<ProviderConfig[]>("GET", "/provider-configs");
+  providerDrivers = () => this.request<ProviderDriver[]>("GET", "/provider-configs/drivers");
+  createProvider = (body: ProviderInput) => this.request<ProviderRecord>("POST", "/provider-configs", body);
+  updateProvider = ({ id, ...body }: { id: string; label?: string; enabled?: boolean; config?: Record<string, unknown> }) =>
+    this.request<ProviderRecord>("PATCH", `/provider-configs/${id}`, body);
+  setDefaultProvider = (id: string) => this.request<ProviderRecord>("POST", `/provider-configs/${id}/default`);
+  deleteProvider = (id: string) => this.request<void>("DELETE", `/provider-configs/${id}`);
   voices = () => this.request<Record<"km" | "en", string[]>>("GET", "/voices");
 
   projects = () => this.request<(Project & { storyCount: number })[]>("GET", "/projects");

@@ -8,6 +8,7 @@ import { onError } from "./http";
 import { catalogRoutes } from "./routes/catalog";
 import { jobRoutes } from "./routes/jobs";
 import { projectRoutes } from "./routes/projects";
+import { providerConfigRoutes } from "./routes/providers";
 import { sceneRoutes, storyRoutes } from "./routes/stories";
 
 const app = new App();
@@ -22,6 +23,7 @@ const server = new Hono()
   .route("/api/stories", storyRoutes(app))
   .route("/api/scenes", sceneRoutes(app))
   .route("/api/jobs", jobRoutes(app))
+  .route("/api/provider-configs", providerConfigRoutes(app))
   // Generated assets: /files/<project>/<story>/{images,audios,videos}/...
   .use(
     "/files/*",

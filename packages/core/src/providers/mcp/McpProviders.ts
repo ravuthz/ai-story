@@ -54,6 +54,9 @@ export class McpImageProvider implements ImageProvider {
   get label() {
     return this.mcp.label;
   }
+  dispose() {
+    return this.mcp.client.close();
+  }
   async isAvailable() {
     return true;
   }
@@ -74,6 +77,9 @@ export class McpAudioProvider implements AudioProvider {
   get label() {
     return this.mcp.label;
   }
+  dispose() {
+    return this.mcp.client.close();
+  }
   async isAvailable() {
     return true;
   }
@@ -93,6 +99,9 @@ export class McpVideoProvider extends RemoteVideoProvider {
   }
   get label() {
     return this.mcp.label;
+  }
+  dispose() {
+    return this.mcp.client.close();
   }
   isAvailable() {
     return Ffmpeg.isAvailable();

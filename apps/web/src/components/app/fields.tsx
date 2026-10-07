@@ -88,6 +88,10 @@ export function TextField({
   rows = 3,
   placeholder,
   lang,
+  hint,
+  type,
+  disabled,
+  className,
 }: {
   label: string;
   value: string | undefined;
@@ -96,13 +100,17 @@ export function TextField({
   rows?: number;
   placeholder?: string;
   lang?: string;
+  hint?: string;
+  type?: string;
+  disabled?: boolean;
+  className?: string;
 }) {
   return (
-    <Field label={label}>
+    <Field label={label} hint={hint} className={className}>
       {multiline ? (
-        <Textarea lang={lang} rows={rows} value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+        <Textarea lang={lang} rows={rows} value={value ?? ""} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <Input lang={lang} value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+        <Input lang={lang} type={type} value={value ?? ""} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       )}
     </Field>
   );

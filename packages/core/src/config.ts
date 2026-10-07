@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dir, "../../..");
 
 /** Expands a leading "~/" like a shell would. */
-const expandHome = (value: string): string => value.replace(/^~(?=\/|$)/, homedir());
+export const expandHome = (value: string): string => value.replace(/^~(?=\/|$)/, homedir());
 
 /** Loads <repo>/.env regardless of cwd (MCP clients spawn us from anywhere). Real env vars win. */
 function loadRootEnv(): void {

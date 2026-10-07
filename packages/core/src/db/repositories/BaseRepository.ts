@@ -87,6 +87,11 @@ export class NotFoundError extends Error {
   readonly status = 404;
 }
 
+/** A request that is well-formed but not allowed (e.g. deleting the default provider). */
+export class InputError extends Error {
+  readonly status = 400;
+}
+
 /** Copies only the keys present on `source`, renaming them via `map` (entity key → column). */
 export function pickColumns<T extends object>(
   source: Partial<T>,

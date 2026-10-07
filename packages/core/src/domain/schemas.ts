@@ -42,3 +42,22 @@ export const ScenePatchSchema = z.object({
 
 export const GenerateStoryJobSchema = z.object({ storyId: z.string(), render: z.boolean().optional() });
 export const RenderJobSchema = RenderOptionsSchema.extend({ storyId: z.string() });
+
+export const CreateProviderSchema = z.object({
+  /** Driver type, e.g. "qwen-gradio" (see GET /api/provider-configs/drivers). */
+  type: z.string(),
+  /** Id stories use to pick this provider; unique per kind and fixed after creation. */
+  slug: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,59}$/, "lowercase letters, digits, . _ - (max 60)"),
+  label: z.string().max(120).optional(),
+  enabled: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+export type CreateProviderInput = z.infer<typeof CreateProviderSchema>;
+
+export const UpdateProviderSchema = z.object({
+  label: z.string().max(120).optional(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+export type UpdateProviderInput = z.infer<typeof UpdateProviderSchema>;

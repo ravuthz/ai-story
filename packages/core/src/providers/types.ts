@@ -16,6 +16,8 @@ export interface Provider {
   /** Optional extra info shown in provider listings. */
   readonly detail?: string;
   isAvailable(): Promise<boolean>;
+  /** Releases held resources (e.g. an MCP server process) when the provider is reconfigured or removed. */
+  dispose?(): Promise<void>;
 }
 
 export interface TextRequest {

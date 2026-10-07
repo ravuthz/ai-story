@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 export const keys = {
   categories: ["categories"] as const,
   providers: ["providers"] as const,
+  providerConfigs: ["provider-configs"] as const,
+  providerDrivers: ["provider-drivers"] as const,
   voices: ["voices"] as const,
   projects: ["projects"] as const,
   project: (id: string) => ["projects", id] as const,
@@ -15,6 +17,8 @@ export const keys = {
 
 export const useCategories = () => useQuery({ queryKey: keys.categories, queryFn: api.categories });
 export const useProviders = () => useQuery({ queryKey: keys.providers, queryFn: api.providers, staleTime: 60_000 });
+export const useProviderConfigs = () => useQuery({ queryKey: keys.providerConfigs, queryFn: api.providerConfigs });
+export const useProviderDrivers = () => useQuery({ queryKey: keys.providerDrivers, queryFn: api.providerDrivers, staleTime: Infinity });
 export const useVoices = () => useQuery({ queryKey: keys.voices, queryFn: api.voices, staleTime: Infinity });
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: api.projects });
 export const useProject = (id: string) => useQuery({ queryKey: keys.project(id), queryFn: () => api.project(id) });

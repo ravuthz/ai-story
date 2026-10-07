@@ -2,14 +2,15 @@ import { config as defaultConfig, type AppConfig } from "./config";
 import { Database } from "./db/Database";
 import { JobRepository } from "./db/repositories/JobRepository";
 import { ProjectRepository } from "./db/repositories/ProjectRepository";
+import { ProviderRepository } from "./db/repositories/ProviderRepository";
 import { SceneRepository } from "./db/repositories/SceneRepository";
 import { StoryRepository } from "./db/repositories/StoryRepository";
 import { categoryRegistry } from "./domain/categories/CategoryRegistry";
 import { BatchSchema, GenerateStoryJobSchema, RenderJobSchema } from "./domain/schemas";
-import { ProviderFactory } from "./providers/factory";
 import { ProviderRegistry } from "./providers/ProviderRegistry";
 import { JobQueue } from "./services/JobQueue";
 import { ProjectService } from "./services/ProjectService";
+import { ProviderService } from "./services/ProviderService";
 import { RenderService } from "./services/RenderService";
 import { StoryService } from "./services/StoryService";
 import { ProjectStorage } from "./storage/ProjectStorage";
@@ -19,7 +20,10 @@ export class App {
   readonly db: Database;
   readonly storage: ProjectStorage;
   readonly categories = categoryRegistry;
-  readonly providers: ProviderRegistry;
+  /** Live providers used for generation. */
+  readonly providers = new ProviderRegistry();
+  /** Provider configuration (database-backed); edits are applied to `providers` immediately. */
+  readonly providerConfigs: ProviderService;
   readonly projects: ProjectService;
   readonly stories: StoryService;
   readonly renderer: RenderService;
@@ -28,7 +32,8 @@ export class App {
   constructor(readonly config: AppConfig = defaultConfig) {
     this.db = new Database(config.databasePath);
     this.storage = new ProjectStorage(config.storageDir);
-    this.providers = ProviderFactory.registry(config);
+    this.providerConfigs = new ProviderService(new ProviderRepository(this.db), this.db, this.providers, { cliTimeoutMs: config.cliTimeoutMs });
+    this.providerConfigs.init(config);
 
     const projectRepo = new ProjectRepository(this.db);
     const storyRepo = new StoryRepository(this.db);

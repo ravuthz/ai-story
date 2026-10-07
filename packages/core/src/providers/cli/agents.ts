@@ -71,7 +71,7 @@ export class OmpAgent extends CliAgent {
   }
 }
 
-const AGENT_CLASSES: Record<AgentId, new (timeoutMs: number, settings: AgentSettings) => CliAgent> = {
+export const AGENT_CLASSES: Record<AgentId, new (timeoutMs: number, settings: AgentSettings) => CliAgent> = {
   codex: CodexAgent,
   claude: ClaudeAgent,
   gemini: GeminiAgent,

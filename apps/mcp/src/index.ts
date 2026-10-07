@@ -4,10 +4,12 @@ import {
   BatchSchema,
   CATEGORY_IDS,
   CreateProjectSchema,
+  CreateProviderSchema,
   CreateStorySchema,
   PartialSettingsSchema,
   RenderOptionsSchema,
   ScenePatchSchema,
+  UpdateProviderSchema,
 } from "@ai-story/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -44,6 +46,13 @@ tool("list_categories", `Story categories (${CATEGORY_IDS.join(", ")}) with coun
   app.stories.stats(),
 );
 tool("list_providers", "Text/image/audio/video providers and availability", {}, () => app.providers.describe());
+tool("list_provider_configs", "Stored provider configuration (secrets masked), with availability", {}, () => app.providerConfigs.list());
+tool("list_provider_types", "Provider driver types and the config fields each one takes", {}, () => app.providerConfigs.drivers());
+tool("create_provider", "Add a provider from a driver type with its config", CreateProviderSchema.shape, (a) => app.providerConfigs.create(a));
+tool("update_provider", "Change a provider's label, enabled flag or config", { providerId: z.string(), ...UpdateProviderSchema.shape }, ({ providerId, ...patch }) =>
+  app.providerConfigs.update(providerId, patch),
+);
+tool("set_default_provider", "Make a provider the default for its kind", { providerId: z.string() }, (a) => app.providerConfigs.setDefault(a.providerId));
 tool("list_projects", "List projects", {}, () => app.projects.list());
 tool("create_project", "Create a project (stories are stored per project)", CreateProjectSchema.shape, (a) => app.projects.create(a));
 
