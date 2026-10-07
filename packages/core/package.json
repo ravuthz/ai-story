@@ -1,0 +1,24 @@
+{
+  "name": "@ai-story/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gradio/client": "^2.7.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "msedge-tts": "^2.0.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/domain/types.ts"
+  }
+}

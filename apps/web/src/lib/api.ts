@@ -1,0 +1,87 @@
+import type { CategoryId, Job, Project, Scene, Story, StorySettings } from "@ai-story/core/types";
+
+export type { CategoryId, Job, Project, Scene, Story, StorySettings };
+export type StoryWithScenes = Story & { scenes: Scene[] };
+export type RenderStep = "images" | "audios" | "videos" | "final";
+export type SettingsInput = Partial<StorySettings>;
+
+export interface CategoryInfo {
+  id: CategoryId;
+  label: string;
+  description: string;
+  imageStyle: string;
+  capacity: number;
+  count: number;
+}
+export interface ProviderInfo {
+  id: string;
+  kind: "text" | "image" | "audio" | "video";
+  label: string;
+  available: boolean;
+  detail?: string;
+}
+export interface Page<T> {
+  total: number;
+  items: T[];
+}
+
+class ApiError extends Error {}
+
+/** Thin typed wrapper over the REST API. */
+class ApiClient {
+  private readonly base: string;
+
+  constructor(base = "/api") {
+    this.base = base;
+  }
+
+  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch(this.base + path, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 204) return undefined as T;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(data.error ?? res.statusText);
+    return data as T;
+  }
+
+  private qs(params: Record<string, string | number | undefined>) {
+    const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== "");
+    return entries.length ? `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)]))}` : "";
+  }
+
+  categories = () => this.request<CategoryInfo[]>("GET", "/categories");
+  providers = () => this.request<{ defaults: Record<string, string>; providers: ProviderInfo[] }>("GET", "/providers");
+  voices = () => this.request<Record<"km" | "en", string[]>>("GET", "/voices");
+
+  projects = () => this.request<(Project & { storyCount: number })[]>("GET", "/projects");
+  project = (id: string) => this.request<Project>("GET", `/projects/${id}`);
+  createProject = (body: { name: string; description?: string }) => this.request<Project>("POST", "/projects", body);
+  deleteProject = (id: string) => this.request<void>("DELETE", `/projects/${id}`);
+
+  stories = (q: { projectId?: string; category?: string; status?: string; limit?: number; offset?: number }) =>
+    this.request<Page<Story>>("GET", `/stories${this.qs(q)}`);
+  story = (id: string) => this.request<StoryWithScenes>("GET", `/stories/${id}`);
+  createStory = (body: { projectId: string; category: CategoryId; settings?: SettingsInput; render?: boolean }) =>
+    this.request<{ story: Story; job: Job }>("POST", "/stories", body);
+  batch = (body: { projectId: string; category: CategoryId; count: number; settings?: SettingsInput; render?: boolean }) =>
+    this.request<{ job: Job }>("POST", "/stories/batch", body);
+  updateSettings = (id: string, body: SettingsInput) => this.request<Story>("PATCH", `/stories/${id}/settings`, body);
+  redistribute = (id: string) => this.request<Scene[]>("POST", `/stories/${id}/redistribute`);
+  regenerate = (id: string) => this.request<{ job: Job }>("POST", `/stories/${id}/generate`);
+  render = (id: string, body: { steps?: RenderStep[]; force?: boolean; sceneIds?: string[] } = {}) =>
+    this.request<{ job: Job }>("POST", `/stories/${id}/render`, body);
+  deleteStory = (id: string) => this.request<void>("DELETE", `/stories/${id}`);
+  updateScene = (id: string, body: Partial<Pick<Scene, "text" | "narration" | "imagePrompt" | "motion" | "durationSec">>) =>
+    this.request<Scene>("PATCH", `/scenes/${id}`, body);
+
+  jobs = () => this.request<{ counts: Record<string, number>; items: Job[] }>("GET", "/jobs");
+}
+
+export const api = new ApiClient();
+
+/** URL for a stored asset path (relative to the storage root). */
+export const fileUrl = (path: string | null, version?: string) =>
+  path ? `/files/${path.split("/").map(encodeURIComponent).join("/")}${version ? `?v=${encodeURIComponent(version)}` : ""}` : undefined;

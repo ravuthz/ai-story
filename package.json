@@ -1,0 +1,18 @@
+{
+  "name": "ai-story",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@ai-story/server' dev & bun run --filter '@ai-story/web' dev",
+    "dev:server": "bun run --filter '@ai-story/server' dev",
+    "dev:web": "bun run --filter '@ai-story/web' dev",
+    "mcp": "bun run apps/mcp/src/index.ts",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test packages",
+    "check:agents": "bun scripts/check-agents.ts"
+  }
+}
