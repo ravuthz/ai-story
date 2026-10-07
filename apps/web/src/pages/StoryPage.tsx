@@ -71,7 +71,7 @@ export function StoryPage({ id }: { id: string }) {
       />
       <div className="grid gap-6 p-8 xl:grid-cols-[1fr_380px]">
         <div className="grid content-start gap-6">
-          {story.error && <p className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-400">{story.error}</p>}
+          {story.error && <p className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">{story.error}</p>}
           {story.synopsis && (
             <p className="text-sm leading-relaxed">
               {story.synopsis} {story.moral && <span className="text-muted-foreground">— {story.moral}</span>}

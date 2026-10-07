@@ -1,10 +1,11 @@
-import { Activity, FolderOpen, LayoutDashboard, Plus, Settings2 } from "lucide-react";
+import { Activity, FolderOpen, LayoutDashboard, Monitor, Moon, Plus, Settings2, Sun } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useJobs, useProjects } from "@/hooks/queries";
 import { href, type Route } from "@/hooks/useRoute";
+import { useTheme, type Theme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 
@@ -21,6 +22,32 @@ function NavLink({ to, active, icon: Icon, children, trailing }: { to: string; a
       <span className="truncate">{children}</span>
       {trailing && <span className="ml-auto">{trailing}</span>}
     </a>
+  );
+}
+
+const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="flex gap-0.5 rounded-lg border p-0.5" role="group" aria-label="Theme">
+      {THEMES.map(({ value, label, icon: Icon }) => (
+        <Button
+          key={value}
+          size="xs"
+          variant={theme === value ? "secondary" : "ghost"}
+          className="flex-1"
+          aria-pressed={theme === value}
+          onClick={() => setTheme(value)}
+        >
+          <Icon /> {label}
+        </Button>
+      ))}
+    </div>
   );
 }
 
@@ -72,6 +99,9 @@ export function Sidebar({ route }: { route: Route }) {
           {!projects.length && <p className="px-2.5 py-2 text-xs text-muted-foreground">No projects yet.</p>}
         </div>
       </ScrollArea>
+      <div className="border-t p-2">
+        <ThemeToggle />
+      </div>
       <CreateProjectDialog open={creating} onOpenChange={setCreating} />
     </aside>
   );

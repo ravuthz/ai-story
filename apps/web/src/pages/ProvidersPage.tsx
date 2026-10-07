@@ -44,7 +44,7 @@ export function ProvidersPage() {
                       {data.defaults[kind] === p.id && <Badge className="ml-2">default</Badge>}
                       {p.detail && <span className="block truncate font-mono text-xs text-muted-foreground">{p.detail}</span>}
                     </span>
-                    <span className={p.available ? "text-emerald-400" : "text-muted-foreground"}>{p.available ? "ready" : "not configured"}</span>
+                    <span className={p.available ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{p.available ? "ready" : "not configured"}</span>
                   </div>
                 ))}
             </CardContent>
