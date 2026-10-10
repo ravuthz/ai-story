@@ -1,8 +1,8 @@
 import { useId, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { useCategories, useProviders, useVoiceOptions } from "@/hooks/queries";
+import { ImageStylePicker } from "./ImageStylePicker";
+import { useProviders, useVoiceOptions } from "@/hooks/queries";
 import { AudioLines, Sparkles } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProviderInfo, SettingsInput, VoiceOptions } from "@/lib/api";
@@ -24,27 +24,6 @@ const FIT_OPTIONS = [
   { key: "fitVideo", label: "Fit Video", speedKey: "speedUpAudio", speedLabel: "Speed up audio fit to video" },
 ] as const;
 const DEFAULT_SCENE_SEC = 10;
-/** Fallback chips when the form isn't tied to a category. */
-const STYLE_TAGS = [
-  "cinematic",
-  "highly detailed",
-  "dramatic lighting",
-  "photorealistic",
-  "anime",
-  "3D render",
-  "watercolor",
-  "oil painting",
-  "Pixar style",
-  "dark fantasy",
-];
-
-const splitTags = (style = "") => style.split(",").map((t) => t.trim()).filter(Boolean);
-/** Adds the tag to a comma-separated style string, or removes it if already present. */
-const toggleTag = (style: string | undefined, tag: string) => {
-  const tags = splitTags(style);
-  const has = tags.some((t) => t.toLowerCase() === tag.toLowerCase());
-  return (has ? tags.filter((t) => t.toLowerCase() !== tag.toLowerCase()) : [...tags, tag]).join(", ");
-};
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(n) || min));
 const MAX_SCENES = 60;
@@ -128,10 +107,7 @@ function VoiceField({ value, onChange, options }: { value: SettingsInput; onChan
 }
 
 /** Shared editor for per-story settings: used by "new story", "batch" and the story page. */
-export function SettingsForm({ value, onChange, category }: { value: SettingsInput; onChange: (next: SettingsInput) => void; category?: string }) {
-  const { data: categories } = useCategories();
-  // Each category suggests its own image styles (edited on the Categories page).
-  const styleTags = categories?.find((c) => c.id === category)?.styleSuggestions ?? STYLE_TAGS;
+export function SettingsForm({ value, onChange }: { value: SettingsInput; onChange: (next: SettingsInput) => void; category?: string }) {
   const { data: providers } = useProviders();
   const { data: voiceOptions } = useVoiceOptions(value.providers?.audio, value.narrationLanguage ?? "km");
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
@@ -164,19 +140,10 @@ export function SettingsForm({ value, onChange, category }: { value: SettingsInp
         <SelectField label="Narration" value={language} options={LANGUAGES} onChange={(v) => onChange({ ...value, narrationLanguage: v as "km" | "en", voice: undefined })} />
         <SelectField label="Aspect ratio" value={value.aspectRatio ?? "9:16"} options={ASPECTS} onChange={(v) => set("aspectRatio", v as SettingsInput["aspectRatio"])} />
       </div>
-      <div className="grid gap-2">
-        <TextField label="Image style" value={value.imageStyle} onChange={(v) => set("imageStyle", v)} placeholder="cinematic, highly detailed, dramatic lighting" />
-        <div className="flex flex-wrap gap-1.5">
-          {styleTags.map((tag) => {
-            const active = splitTags(value.imageStyle).some((t) => t.toLowerCase() === tag.toLowerCase());
-            return (
-              <Button key={tag} type="button" size="xs" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => set("imageStyle", toggleTag(value.imageStyle, tag))}>
-                {tag}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
+      <ImageStylePicker
+        value={value.imageStyle}
+        onChange={(v) => set("imageStyle", v)}
+      />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {KINDS.map((kind) => (
           <SelectField

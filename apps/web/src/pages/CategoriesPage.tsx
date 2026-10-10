@@ -60,14 +60,6 @@ export function CategoriesPage() {
                 <Badge variant="secondary">{c.count} {c.count === 1 ? "story" : "stories"}</Badge>
                 {c.builtIn ? <Badge variant="outline">built-in</Badge> : <Badge variant="outline">custom</Badge>}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {c.styleSuggestions.slice(0, 6).map((s) => (
-                  <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                    {s}
-                  </span>
-                ))}
-                {c.styleSuggestions.length > 6 && <span className="px-1 text-xs text-muted-foreground">+{c.styleSuggestions.length - 6}</span>}
-              </div>
             </CardContent>
           </Card>
         ))}

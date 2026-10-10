@@ -1,9 +1,7 @@
-import { ClipboardCopy, ClipboardPaste, RotateCcw, X } from "lucide-react";
+import { ClipboardCopy, ClipboardPaste, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { useRef, useState, type KeyboardEvent } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { keys, useAction, useTemplateDefaults } from "@/hooks/queries";
@@ -22,38 +20,6 @@ const POOLS: { key: keyof CategoryPools; label: string; hint: string }[] = [
 
 const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 const placeholdersIn = (t: string) => new Set([...t.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]));
-
-/** Chips for the category's suggested image styles: Enter or comma adds, × removes. */
-function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
-  const [draft, setDraft] = useState("");
-  const add = () => {
-    const next = draft.split(",").map((t) => t.trim()).filter((t) => t && !tags.some((x) => x.toLowerCase() === t.toLowerCase()));
-    if (next.length) onChange([...tags, ...next]);
-    setDraft("");
-  };
-  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      add();
-    } else if (e.key === "Backspace" && !draft && tags.length) onChange(tags.slice(0, -1));
-  };
-  return (
-    <div className="grid gap-2">
-      <div className="flex min-h-9 flex-wrap gap-1.5 rounded-md border p-2">
-        {tags.map((t) => (
-          <Badge key={t} variant="secondary" className="gap-1 pr-1">
-            {t}
-            <button type="button" className="rounded-sm hover:bg-foreground/10" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>
-              <X className="size-3" />
-            </button>
-          </Badge>
-        ))}
-        {!tags.length && <span className="text-xs text-muted-foreground">No suggestions yet</span>}
-      </div>
-      <Input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} onBlur={add} placeholder="Type a style and press Enter, e.g. moody fog" />
-    </div>
-  );
-}
 
 /** A template textarea with clickable placeholders that insert at the cursor, and a reset to the default. */
 function TemplateEditor({
@@ -119,7 +85,7 @@ function TemplateEditor({
   );
 }
 
-/** Create, duplicate or edit a category: general info, seed pools, style suggestions and prompt templates. */
+/** Create, duplicate or edit a category: general info, seed pools and prompt templates. */
 export function CategoryDialog({
   category,
   duplicateOf,
@@ -229,7 +195,7 @@ export function CategoryDialog({
       open
       onOpenChange={onOpenChange}
       title={category ? `Edit ${category.emoji} ${category.label}` : duplicateOf ? `Duplicate ${duplicateOf.label}` : "New category"}
-      description="Seeds make every story unique; style suggestions appear as chips in story settings; templates shape the prompts sent to the AI."
+      description="Seeds make every story unique; templates shape the prompts sent to the AI."
       submitLabel={category ? "Save category" : "Create category"}
       pending={create.isPending || update.isPending}
       disabled={!ready}
@@ -265,7 +231,6 @@ export function CategoryDialog({
           <TabsTrigger value="seeds">
             Seeds {emptyPools.length > 0 && <span className="ml-1 size-1.5 rounded-full bg-red-500" aria-label="incomplete" />}
           </TabsTrigger>
-          <TabsTrigger value="styles">Style suggestions</TabsTrigger>
           <TabsTrigger value="prompts">
             Prompt templates {defaults && !templatesOk && <span className="ml-1 size-1.5 rounded-full bg-red-500" aria-label="incomplete" />}
           </TabsTrigger>
@@ -307,11 +272,6 @@ export function CategoryDialog({
               />
             ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="styles" className="grid gap-2">
-          <p className="text-sm text-muted-foreground">Image-style chips offered in a story's settings for this category.</p>
-          <TagEditor tags={styles} onChange={setStyles} />
         </TabsContent>
 
         <TabsContent value="prompts" className="grid gap-5">

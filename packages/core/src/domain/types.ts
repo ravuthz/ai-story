@@ -62,7 +62,7 @@ export const SETTINGS_DEFAULTS: StorySettings = {
   durationSec: 60,
   narrationLanguage: "km",
   aspectRatio: "9:16",
-  imageStyle: "cinematic, highly detailed, dramatic lighting",
+  imageStyle: "Cinematic Realistic",
   providers: {},
 };
 
