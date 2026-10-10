@@ -76,7 +76,7 @@ export function StoryPage({ id }: { id: string }) {
         }
       />
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="gap-6 p-8">
-        <TabsList>
+        <TabsList variant="line">
           <TabsTrigger value="generation">Generation</TabsTrigger>
           <TabsTrigger value="final">
             Final Video{finalVideo && <span className="ml-1 size-1.5 rounded-full bg-emerald-500" aria-label="ready" />}
@@ -86,16 +86,9 @@ export function StoryPage({ id }: { id: string }) {
         <TabsContent value="generation">
           <div className="grid content-start gap-6">
             {story.error && <p className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">{story.error}</p>}
-            {story.synopsis && (
-              <p className="text-sm leading-relaxed">
-                {story.synopsis} {story.moral && <span className="text-muted-foreground">— {story.moral}</span>}
-              </p>
-            )}
-
             <Card>
               <CardHeader>
                 <CardTitle>Settings</CardTitle>
-                <CardDescription>Durations, scenes, narration language and providers for this story.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <SettingsForm value={settings} onChange={setSettings} category={story.category} />

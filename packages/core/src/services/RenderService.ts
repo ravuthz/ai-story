@@ -1,7 +1,8 @@
 import type { ProjectRepository } from "../db/repositories/ProjectRepository";
 import type { SceneRepository } from "../db/repositories/SceneRepository";
 import type { CategoryRegistry } from "../domain/categories/CategoryRegistry";
-import type { Project, Scene, Story } from "../domain/types";
+import { rm } from "node:fs/promises";
+import type { Project, Scene, Story, StorySettings } from "../domain/types";
 import { StoryPromptBuilder } from "../prompts/StoryPromptBuilder";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
 import { Ffmpeg } from "../providers/video/Ffmpeg";
@@ -120,21 +121,53 @@ export class RenderService {
       case "videos": {
         if (current.videoPath && !force) return;
         if (!current.imagePath) throw new Error(`Scene ${scene.index + 1} has no image yet`);
-        const path = await this.providers.get("video", settings.providers.video).renderClip({
-          clip: {
-            imagePath: this.storage.toAbsolute(current.imagePath),
-            audioPath: current.audioPath ? this.storage.toAbsolute(current.audioPath) : null,
-            durationSec: current.durationSec,
-            motion: current.motion,
-            prompt: current.imagePrompt,
-          },
-          aspectRatio: settings.aspectRatio,
-          outPath: file(".mp4"),
-        });
-        this.scenes.update(scene.id, { videoPath: rel(path) });
+        const audioPath = current.audioPath ? this.storage.toAbsolute(current.audioPath) : null;
+        const fit = await this.planFit(current.durationSec, audioPath, settings, file(".fit.mp3"));
+        try {
+          const path = await this.providers.get("video", settings.providers.video).renderClip({
+            clip: {
+              imagePath: this.storage.toAbsolute(current.imagePath),
+              audioPath: fit.audioPath,
+              durationSec: fit.durationSec,
+              motion: current.motion,
+              prompt: current.imagePrompt,
+            },
+            aspectRatio: settings.aspectRatio,
+            outPath: file(".mp4"),
+          });
+          if (fit.trimSec) await Ffmpeg.trimClip(path, fit.trimSec);
+          this.scenes.update(scene.id, { videoPath: rel(path) });
+        } finally {
+          if (fit.audioPath !== audioPath) await rm(fit.audioPath!, { force: true });
+        }
         return;
       }
     }
+  }
+
+  /**
+   * How a clip is matched to its narration (stored files are never changed):
+   * - fitAudio, video longer than audio: render the clip at the audio length (speedUpVideo) or cut it there.
+   * - fitVideo, audio longer than video: play a sped-up copy of the audio (speedUpAudio) or cut the clip at the scene length.
+   */
+  private async planFit(
+    sceneSec: number,
+    audioPath: string | null,
+    { fitAudio, fitVideo, speedUpVideo, speedUpAudio }: StorySettings,
+    fastAudioPath: string,
+  ): Promise<{ durationSec: number; audioPath: string | null; trimSec?: number }> {
+    const plain = { durationSec: sceneSec, audioPath };
+    if (!audioPath || !(fitAudio || fitVideo)) return plain;
+    const narrationSec = await Ffmpeg.probeDuration(audioPath);
+    if (!narrationSec) return plain;
+    // Same tail padding Ffmpeg.clipDuration adds, so the clip ends just after the narration.
+    const audioSec = Math.round((narrationSec + Ffmpeg.NARRATION_TAIL_SEC) * 10) / 10;
+    if (fitAudio && sceneSec > audioSec) return speedUpVideo ? { ...plain, durationSec: audioSec } : { ...plain, trimSec: audioSec };
+    if (fitVideo && audioSec > sceneSec) {
+      if (!speedUpAudio) return { ...plain, trimSec: sceneSec };
+      return { ...plain, audioPath: await Ffmpeg.speedUpToFit(audioPath, Math.max(0.5, sceneSec - Ffmpeg.NARRATION_TAIL_SEC), fastAudioPath) };
+    }
+    return plain;
   }
 
   private async composeFinal(storyId: string, project: Project): Promise<void> {

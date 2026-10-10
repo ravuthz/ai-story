@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useCategories, useProviders, useVoiceOptions } from "@/hooks/queries";
 import { AudioLines, Sparkles } from "lucide-react";
@@ -16,6 +18,11 @@ const ASPECTS: Option[] = [
   { value: "1:1", label: "1:1 · Square" },
 ];
 const KINDS = ["text", "image", "audio", "video"] as const;
+/** Fit radio options, each with a speed-up switch shown while it is selected. */
+const FIT_OPTIONS = [
+  { key: "fitAudio", label: "Fit Audio", speedKey: "speedUpVideo", speedLabel: "Speed up video fit to audio" },
+  { key: "fitVideo", label: "Fit Video", speedKey: "speedUpAudio", speedLabel: "Speed up audio fit to video" },
+] as const;
 const DEFAULT_SCENE_SEC = 10;
 /** Fallback chips when the form isn't tied to a category. */
 const STYLE_TAGS = [
@@ -76,21 +83,24 @@ function VoiceField({ value, onChange, options }: { value: SettingsInput; onChan
   const providerVoice =
     fallback?.mode === "clone" && fallback.voiceName ? `Provider's voice (${fallback.voiceName})` : "Provider's default voice";
   const providerDescription = fallback?.mode === "design" ? fallback.description : undefined;
+  // Voice kind and the voice itself sit side by side as two cells of the providers grid.
   return (
-    <Field label="Voice" className="sm:col-span-2">
-      <Tabs
-        value={mode}
-        // Switching kind keeps the voice only if it already is of that kind.
-        onValueChange={(m) => onChange({ ...value, voiceMode: m as VoiceMode, voice: selected?.mode === m ? value.voice : undefined })}
-      >
-        <TabsList className="w-full">
-          {(Object.keys(VOICE_KINDS) as VoiceMode[]).map((m) => (
-            <TabsTrigger key={m} value={m}>
-              {m === "clone" ? <AudioLines /> : <Sparkles />} {VOICE_KINDS[m].tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+    <>
+      <Field label="Voice" className="content-start sm:col-span-2">
+        <Tabs
+          value={mode}
+          // Switching kind keeps the voice only if it already is of that kind.
+          onValueChange={(m) => onChange({ ...value, voiceMode: m as VoiceMode, voice: selected?.mode === m ? value.voice : undefined })}
+        >
+          <TabsList className="w-full">
+            {(Object.keys(VOICE_KINDS) as VoiceMode[]).map((m) => (
+              <TabsTrigger key={m} value={m}>
+                {m === "clone" ? <AudioLines /> : <Sparkles />} {VOICE_KINDS[m].tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </Field>
       {mode === "clone" ? (
         <SelectField
           label="Cloned voice"
@@ -99,6 +109,7 @@ function VoiceField({ value, onChange, options }: { value: SettingsInput; onChan
           options={[{ value: "", label: providerVoice }, ...clones]}
           onChange={(v) => onChange({ ...value, voiceMode: "clone", voice: v || undefined })}
           hint={clones.length ? undefined : "No cloned voices yet: upload one on Providers → Audio → Clone / design voices"}
+          className="content-start sm:col-span-2"
         />
       ) : (
         <TextField
@@ -109,9 +120,10 @@ function VoiceField({ value, onChange, options }: { value: SettingsInput; onChan
           onChange={(v) => onChange({ ...value, voiceMode: "design", voice: undefined, voiceDescription: v || undefined })}
           placeholder={providerDescription ?? "A young woman with a bright, warm voice, speaking gently"}
           hint={providerDescription ? "Blank uses the provider's voice description" : "Required: describe the voice (no provider description is set)"}
+          className="content-start sm:col-span-2"
         />
       )}
-    </Field>
+    </>
   );
 }
 
@@ -124,6 +136,8 @@ export function SettingsForm({ value, onChange, category }: { value: SettingsInp
   const { data: voiceOptions } = useVoiceOptions(value.providers?.audio, value.narrationLanguage ?? "km");
   const set = <K extends keyof SettingsInput>(key: K, v: SettingsInput[K]) => onChange({ ...value, [key]: v });
   const language = value.narrationLanguage ?? "km";
+  // Unique radio group name, so two open settings forms don't share one group.
+  const fitGroup = useId();
   // Duration = Scenes × Sec / scene; editing any one of them recalculates the others.
   const [sceneSec, setSceneSec] = useState(DEFAULT_SCENE_SEC);
   const totalFor = (scenes: number, sec: number) => clamp(scenes * sec, MIN_DURATION, MAX_DURATION);
@@ -177,6 +191,32 @@ export function SettingsForm({ value, onChange, category }: { value: SettingsInp
         ))}
         <VoiceField value={value} onChange={onChange} options={voiceOptions} />
       </div>
+      <Field label="Sync (applied when clips render)">
+        <div className="grid gap-2">
+          {FIT_OPTIONS.map(({ key, label, speedKey, speedLabel }) => (
+            <div key={key} className="flex min-h-6 flex-wrap items-center gap-x-6 gap-y-2">
+              <label className="flex w-24 items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={fitGroup}
+                  className="size-4 accent-primary"
+                  checked={!!value[key]}
+                  // One fit at a time; clicking the selected one again clears it.
+                  onClick={() => onChange({ ...value, fitAudio: key === "fitAudio" && !value.fitAudio, fitVideo: key === "fitVideo" && !value.fitVideo })}
+                  readOnly
+                />
+                {label}
+              </label>
+              {value[key] && (
+                <div className="flex items-center gap-2">
+                  <Switch id={speedKey} checked={!!value[speedKey]} onCheckedChange={(v) => set(speedKey, v)} />
+                  <Label htmlFor={speedKey}>{speedLabel}</Label>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Field>
     </div>
   );
 }

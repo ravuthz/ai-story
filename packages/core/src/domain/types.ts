@@ -48,6 +48,12 @@ const SettingsFieldsSchema = z.object({
   voiceMode: z.enum(VOICE_MODES).optional(),
   /** Voice design for this story (voiceMode "design"); blank = the provider's own voice description. */
   voiceDescription: z.string().max(1000).optional(),
+  /** When clips render: a scene longer than its narration ends with the narration (cut, or sped up with speedUpVideo). */
+  fitAudio: z.boolean().optional(),
+  speedUpVideo: z.boolean().optional(),
+  /** When clips render: narration longer than its scene ends with the scene (cut, or sped up ≤2× with speedUpAudio). */
+  fitVideo: z.boolean().optional(),
+  speedUpAudio: z.boolean().optional(),
 });
 export type StorySettings = z.infer<typeof SettingsFieldsSchema>;
 
