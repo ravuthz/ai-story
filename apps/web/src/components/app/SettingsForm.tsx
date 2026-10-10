@@ -18,7 +18,7 @@ const ASPECTS: Option[] = [
   { value: "1:1", label: "1:1 · Square" },
 ];
 const KINDS = ["text", "image", "audio", "video"] as const;
-/** Fit radio options, each with a speed-up switch shown while it is selected. */
+/** Fit radio options; the selected one shows its speed-up switch. */
 const FIT_OPTIONS = [
   { key: "fitAudio", label: "Fit Audio", speedKey: "speedUpVideo", speedLabel: "Speed up video fit to audio" },
   { key: "fitVideo", label: "Fit Video", speedKey: "speedUpAudio", speedLabel: "Speed up audio fit to video" },
@@ -192,27 +192,25 @@ export function SettingsForm({ value, onChange, category }: { value: SettingsInp
         <VoiceField value={value} onChange={onChange} options={voiceOptions} />
       </div>
       <Field label="Sync (applied when clips render)">
-        <div className="grid gap-2">
-          {FIT_OPTIONS.map(({ key, label, speedKey, speedLabel }) => (
-            <div key={key} className="flex min-h-6 flex-wrap items-center gap-x-6 gap-y-2">
-              <label className="flex w-24 items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name={fitGroup}
-                  className="size-4 accent-primary"
-                  checked={!!value[key]}
-                  // One fit at a time; clicking the selected one again clears it.
-                  onClick={() => onChange({ ...value, fitAudio: key === "fitAudio" && !value.fitAudio, fitVideo: key === "fitVideo" && !value.fitVideo })}
-                  readOnly
-                />
-                {label}
-              </label>
-              {value[key] && (
-                <div className="flex items-center gap-2">
-                  <Switch id={speedKey} checked={!!value[speedKey]} onCheckedChange={(v) => set(speedKey, v)} />
-                  <Label htmlFor={speedKey}>{speedLabel}</Label>
-                </div>
-              )}
+        <div className="flex min-h-6 flex-wrap items-center gap-x-6 gap-y-2">
+          {FIT_OPTIONS.map(({ key, label }) => (
+            <label key={key} className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name={fitGroup}
+                className="size-4 accent-primary"
+                checked={!!value[key]}
+                // One fit at a time; clicking the selected one again clears it.
+                onClick={() => onChange({ ...value, fitAudio: key === "fitAudio" && !value.fitAudio, fitVideo: key === "fitVideo" && !value.fitVideo })}
+                readOnly
+              />
+              {label}
+            </label>
+          ))}
+          {FIT_OPTIONS.filter(({ key }) => value[key]).map(({ speedKey, speedLabel }) => (
+            <div key={speedKey} className="flex items-center gap-2">
+              <Switch id={speedKey} checked={!!value[speedKey]} onCheckedChange={(v) => set(speedKey, v)} />
+              <Label htmlFor={speedKey}>{speedLabel}</Label>
             </div>
           ))}
         </div>
