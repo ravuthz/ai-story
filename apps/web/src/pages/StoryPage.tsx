@@ -1,4 +1,4 @@
-import { Clapperboard, Download, Film, Image, Mic, PenLine, Save, Scale, Trash2, Wand2 } from "lucide-react";
+import { Clapperboard, Download, Film, Image, Mic, PenLine, RefreshCw, Save, Scale, Trash2, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,10 +22,19 @@ const RENDER_ACTIONS: { label: string; steps?: RenderStep[]; icon: typeof Film }
   { label: "Clips + final", steps: ["videos", "final"], icon: Clapperboard },
 ];
 
+type RefreshTarget = "images" | "audios" | "videos" | "clips-final";
+const REFRESH_TARGETS: { key: RefreshTarget; label: string; steps: RenderStep[]; hint: string }[] = [
+  { key: "images", label: "Image", steps: ["images"], hint: "Regenerate scene images" },
+  { key: "audios", label: "Narration", steps: ["audios"], hint: "Regenerate scene narration" },
+  { key: "videos", label: "Video", steps: ["videos"], hint: "Regenerate scene video clips" },
+  { key: "clips-final", label: "Clips + final", steps: ["videos", "final"], hint: "Regenerate clips and assemble the final video" },
+];
+
 export function StoryPage({ id }: { id: string }) {
   const { data: story, isLoading } = useStory(id);
   const [settings, setSettings] = useState<SettingsInput>({});
   const [force, setForce] = useState(false);
+  const [refreshTargets, setRefreshTargets] = useState<RefreshTarget[]>([]);
   const [tab, setTab] = useState<"generation" | "final">("generation");
   useEffect(() => story && setSettings(story.settings), [story?.settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -34,6 +43,7 @@ export function StoryPage({ id }: { id: string }) {
   const redistribute = useAction(() => api.redistribute(id), { success: "Durations re-split across scenes", invalidate });
   const regenerate = useAction(() => api.regenerate(id), { success: "Script regeneration queued", invalidate });
   const render = useAction((steps?: RenderStep[]) => api.render(id, { steps, force }), { success: "Render queued", invalidate });
+  const refresh = useAction((steps: RenderStep[]) => api.render(id, { steps, force: true }), { success: "Refresh queued", invalidate });
   const remove = useAction(() => api.deleteStory(id), { success: "Story deleted", invalidate: [["stories"]] });
 
   if (isLoading || !story) return <Skeleton className="m-8 h-64" />;
@@ -45,6 +55,8 @@ export function StoryPage({ id }: { id: string }) {
   const { aspectRatio } = story.settings;
   const aspect = aspectOf(aspectRatio);
   const clipsDone = story.scenes.filter((s) => s.videoPath).length;
+  const refreshSteps = [...new Set(REFRESH_TARGETS.filter(({ key }) => refreshTargets.includes(key)).flatMap(({ steps }) => steps))];
+  const renderBusy = busy || render.isPending || refresh.isPending;
 
   return (
     <>
@@ -105,15 +117,41 @@ export function StoryPage({ id }: { id: string }) {
             </Card>
 
             {hasScenes && (
-              <div className="flex flex-wrap items-center gap-2">
-                {RENDER_ACTIONS.map(({ label, steps, icon: Icon }) => (
-                  <Button key={label} variant={steps ? "outline" : "default"} disabled={busy || render.isPending} onClick={() => render.mutate(steps)}>
-                    <Icon /> {label}
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {RENDER_ACTIONS.map(({ label, steps, icon: Icon }) => (
+                    <Button key={label} variant={steps ? "outline" : "default"} disabled={renderBusy} onClick={() => render.mutate(steps)}>
+                      <Icon /> {label}
+                    </Button>
+                  ))}
+                  <div className="ml-2 flex items-center gap-2">
+                    <Switch id="force" checked={force} onCheckedChange={setForce} />
+                    <Label htmlFor="force">Overwrite existing</Label>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-3">
+                  <Button
+                    variant="outline"
+                    disabled={renderBusy || refreshSteps.length === 0}
+                    onClick={() => refresh.mutate(refreshSteps)}
+                  >
+                    <RefreshCw /> Refresh
                   </Button>
-                ))}
-                <div className="ml-2 flex items-center gap-2">
-                  <Switch id="force" checked={force} onCheckedChange={setForce} />
-                  <Label htmlFor="force">Overwrite existing</Label>
+                  <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <legend className="sr-only">Outputs to refresh</legend>
+                    {REFRESH_TARGETS.map(({ key, label, hint }) => (
+                      <label key={key} title={hint} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={refreshTargets.includes(key)}
+                          onChange={() => setRefreshTargets((current) => current.includes(key) ? current.filter((target) => target !== key) : [...current, key])}
+                          disabled={renderBusy}
+                          className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </fieldset>
                 </div>
               </div>
             )}
@@ -152,7 +190,7 @@ export function StoryPage({ id }: { id: string }) {
                   )}
                   <Button
                     variant={finalVideo ? "outline" : "default"}
-                    disabled={!hasScenes || busy || render.isPending}
+                    disabled={!hasScenes || renderBusy}
                     onClick={() => render.mutate(["videos", "final"])}
                   >
                     <Clapperboard /> {finalVideo ? "Re-render final" : "Render clips + final"}
