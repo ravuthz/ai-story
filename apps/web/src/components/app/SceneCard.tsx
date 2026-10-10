@@ -6,6 +6,8 @@ import { keys, useAction } from "@/hooks/queries";
 import { api, fileUrl, type RenderStep, type Scene, type StorySettings } from "@/lib/api";
 import { aspectOf } from "@/lib/aspect";
 import { NumberField, SelectField, TextField } from "./fields";
+import { CollapsibleError } from "./CollapsibleError";
+import { parseErrorItems } from "@/lib/errorUtils";
 
 const MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"].map((m) => ({ value: m, label: m }));
 type Draft = Pick<Scene, "text" | "narration" | "imagePrompt" | "motion" | "durationSec">;
@@ -17,13 +19,18 @@ export function SceneCard({
   version,
   narrationLang,
   aspectRatio,
+  storyError,
 }: {
   scene: Scene;
   version: string;
   narrationLang: string;
   aspectRatio: StorySettings["aspectRatio"];
+  storyError?: string | null;
 }) {
   const aspect = aspectOf(aspectRatio);
+  const sceneErrorItem = parseErrorItems(storyError).find(
+    (item) => item.sceneIndex === scene.index + 1
+  );
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
   useEffect(() => setDraft(toDraft(scene)), [scene]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(scene));
@@ -77,6 +84,7 @@ export function SceneCard({
               <Save /> Save
             </Button>
           </div>
+          {sceneErrorItem && <CollapsibleError error={sceneErrorItem.message} />}
           <TextField label="Story text (English)" value={draft.text} onChange={set("text")} multiline rows={2} />
           <TextField label={`Narration (${narrationLang})`} lang={narrationLang} value={draft.narration} onChange={set("narration")} multiline rows={3} />
           <TextField label="Image prompt" value={draft.imagePrompt} onChange={set("imagePrompt")} multiline rows={2} />

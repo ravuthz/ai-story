@@ -10,6 +10,7 @@ import { CategoryBadge, StatusBadge } from "@/components/app/badges";
 import { SceneCard } from "@/components/app/SceneCard";
 import { SettingsForm } from "@/components/app/SettingsForm";
 import { PageHeader } from "@/components/app/Sidebar";
+import { CollapsibleError } from "@/components/app/CollapsibleError";
 import { keys, useAction, useStory } from "@/hooks/queries";
 import { href } from "@/hooks/useRoute";
 import { api, fileUrl, type RenderStep, type SettingsInput } from "@/lib/api";
@@ -97,7 +98,7 @@ export function StoryPage({ id }: { id: string }) {
 
         <TabsContent value="generation">
           <div className="grid content-start gap-6">
-            {story.error && <p className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">{story.error}</p>}
+            {story.error && <CollapsibleError error={story.error} />}
             <Card>
               <CardHeader>
                 <CardTitle>Settings</CardTitle>
@@ -157,7 +158,7 @@ export function StoryPage({ id }: { id: string }) {
             )}
 
             {story.scenes.map((scene) => (
-              <SceneCard key={scene.id} scene={scene} version={story.updatedAt} narrationLang={story.settings.narrationLanguage} aspectRatio={aspectRatio} />
+              <SceneCard key={scene.id} scene={scene} version={story.updatedAt} narrationLang={story.settings.narrationLanguage} aspectRatio={aspectRatio} storyError={story.error} />
             ))}
           </div>
         </TabsContent>
