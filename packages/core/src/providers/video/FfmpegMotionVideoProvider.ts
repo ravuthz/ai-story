@@ -13,6 +13,13 @@ const MOTIONS: Record<MotionType, { z: string; x: string; y: string }> = {
   "pan-right": { z: `1+${ZOOM}`, x: "(iw-iw/zoom)*on/N", y: "ih/2-(ih/zoom/2)" },
   "pan-up": { z: `1+${ZOOM}`, x: "iw/2-(iw/zoom/2)", y: "(ih-ih/zoom)*(1-on/N)" },
   "pan-down": { z: `1+${ZOOM}`, x: "iw/2-(iw/zoom/2)", y: "(ih-ih/zoom)*on/N" },
+  "pan-up-left": { z: `1+${ZOOM}`, x: "(iw-iw/zoom)*(1-on/N)", y: "(ih-ih/zoom)*(1-on/N)" },
+  "pan-up-right": { z: `1+${ZOOM}`, x: "(iw-iw/zoom)*on/N", y: "(ih-ih/zoom)*(1-on/N)" },
+  "pan-down-left": { z: `1+${ZOOM}`, x: "(iw-iw/zoom)*(1-on/N)", y: "(ih-ih/zoom)*on/N" },
+  "pan-down-right": { z: `1+${ZOOM}`, x: "(iw-iw/zoom)*on/N", y: "(ih-ih/zoom)*on/N" },
+  // Zoom in while the frame drifts from the centre to one side.
+  "zoom-in-left": { z: `1+${ZOOM}*on/N`, x: "(iw-iw/zoom)*(1-on/N)/2", y: "ih/2-(ih/zoom/2)" },
+  "zoom-in-right": { z: `1+${ZOOM}*on/N`, x: "(iw-iw/zoom)*(1+on/N)/2", y: "ih/2-(ih/zoom/2)" },
 };
 
 /** Local Ken Burns style motion video from a still image (no GPU / API needed). */

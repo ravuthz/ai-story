@@ -184,6 +184,13 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
           ))}
         </div>
       </Field>
+      <Field label="Motion (applied when clips render)">
+        <div className="flex min-h-6 items-center gap-2">
+          <Switch id={`${fitGroup}-random-motion`} checked={!!value.randomMotion} onCheckedChange={(v) => set("randomMotion", v)} />
+          <Label htmlFor={`${fitGroup}-random-motion`}>Random Motion</Label>
+          <span className="text-xs text-muted-foreground">Each clip gets a random camera motion, replacing the scene's own</span>
+        </div>
+      </Field>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { ProjectRepository } from "../db/repositories/ProjectRepository";
 import type { SceneRepository } from "../db/repositories/SceneRepository";
 import type { CategoryRegistry } from "../domain/categories/CategoryRegistry";
 import { rm, writeFile } from "node:fs/promises";
-import type { Project, Scene, Story, StorySettings } from "../domain/types";
+import { MOTION_TYPES, type Project, type Scene, type Story, type StorySettings } from "../domain/types";
 import { StoryPromptBuilder } from "../prompts/StoryPromptBuilder";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
 import { Ffmpeg } from "../providers/video/Ffmpeg";
@@ -134,13 +134,14 @@ export class RenderService {
         if (!current.imagePath) throw new Error(`Scene ${scene.index + 1} has no image yet`);
         const audioPath = current.audioPath ? this.storage.toAbsolute(current.audioPath) : null;
         const fit = await this.planFit(current.durationSec, audioPath, settings, file(".fit.mp3"));
+        const motion = settings.randomMotion ? MOTION_TYPES[Math.floor(Math.random() * MOTION_TYPES.length)]! : current.motion;
         try {
           const path = await this.providers.get("video", settings.providers.video).renderClip({
             clip: {
               imagePath: this.storage.toAbsolute(current.imagePath),
               audioPath: fit.audioPath,
               durationSec: fit.durationSec,
-              motion: current.motion,
+              motion,
               prompt: current.imagePrompt,
             },
             aspectRatio: settings.aspectRatio,
@@ -148,7 +149,7 @@ export class RenderService {
           });
           if (fit.trimSec) await Ffmpeg.trimClip(path, fit.trimSec);
           if (settings.subtitleStyle && settings.subtitleStyle !== "none") await this.burnSubtitles(story, current, path, fit.tempo, subtitlesFile);
-          this.scenes.update(scene.id, { videoPath: rel(path) });
+          this.scenes.update(scene.id, { videoPath: rel(path), motion });
         } finally {
           if (fit.audioPath !== audioPath) await rm(fit.audioPath!, { force: true });
           await rm(file(".ass"), { force: true });

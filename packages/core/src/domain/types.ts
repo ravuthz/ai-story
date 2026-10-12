@@ -61,6 +61,8 @@ const SettingsFieldsSchema = z.object({
   /** When clips render: narration longer than its scene ends with the scene (cut, or sped up ≤2× with speedUpAudio). */
   fitVideo: z.boolean().optional(),
   speedUpAudio: z.boolean().optional(),
+  /** When clips render: each scene gets a random camera motion (saved back to the scene) instead of its own. */
+  randomMotion: z.boolean().optional(),
 });
 export type StorySettings = z.infer<typeof SettingsFieldsSchema>;
 
@@ -143,7 +145,20 @@ export interface Scene {
   videoPath: string | null;
 }
 
-export const MOTION_TYPES = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"] as const;
+export const MOTION_TYPES = [
+  "zoom-in",
+  "zoom-out",
+  "pan-left",
+  "pan-right",
+  "pan-up",
+  "pan-down",
+  "pan-up-left",
+  "pan-up-right",
+  "pan-down-left",
+  "pan-down-right",
+  "zoom-in-left",
+  "zoom-in-right",
+] as const;
 export type MotionType = (typeof MOTION_TYPES)[number];
 
 export type JobType = "generate-story" | "generate-batch" | "render-assets";

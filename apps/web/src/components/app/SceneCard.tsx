@@ -1,5 +1,5 @@
-import { ImageIcon, RefreshCw, Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ImageIcon, RefreshCw, Save, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { keys, useAction } from "@/hooks/queries";
@@ -9,7 +9,57 @@ import { NumberField, SelectField, TextField } from "./fields";
 import { CollapsibleError } from "./CollapsibleError";
 import { parseErrorItems } from "@/lib/errorUtils";
 
-const MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"].map((m) => ({ value: m, label: m }));
+const MOTIONS = [
+  "zoom-in",
+  "zoom-out",
+  "pan-left",
+  "pan-right",
+  "pan-up",
+  "pan-down",
+  "pan-up-left",
+  "pan-up-right",
+  "pan-down-left",
+  "pan-down-right",
+  "zoom-in-left",
+  "zoom-in-right",
+].map((m) => ({ value: m, label: m }));
+/**
+ * CSS approximation of the FFmpeg motions: [translate x %, translate y %, scale] at the start and end of the clip.
+ * The image is scaled 1.15×, so a ±7.5% shift pans edge to edge without showing the background.
+ */
+const Z = 1.15;
+const E = ((Z - 1) / 2) * 100;
+const MOTION_FRAMES: Record<Scene["motion"], [[number, number, number], [number, number, number]]> = {
+  "zoom-in": [[0, 0, 1], [0, 0, Z]],
+  "zoom-out": [[0, 0, Z], [0, 0, 1]],
+  "pan-left": [[-E, 0, Z], [E, 0, Z]],
+  "pan-right": [[E, 0, Z], [-E, 0, Z]],
+  "pan-up": [[0, -E, Z], [0, E, Z]],
+  "pan-down": [[0, E, Z], [0, -E, Z]],
+  "pan-up-left": [[-E, -E, Z], [E, E, Z]],
+  "pan-up-right": [[E, -E, Z], [-E, E, Z]],
+  "pan-down-left": [[-E, E, Z], [E, -E, Z]],
+  "pan-down-right": [[E, E, Z], [-E, -E, Z]],
+  "zoom-in-left": [[0, 0, 1], [E, 0, Z]],
+  "zoom-in-right": [[0, 0, 1], [-E, 0, Z]],
+};
+
+/** Loops the scene image through a motion, as the rendered clip will move. */
+function MotionPreview({ src, alt, motion, durationSec }: { src: string; alt: string; motion: Scene["motion"]; durationSec: number }) {
+  const ref = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const frames = MOTION_FRAMES[motion];
+    if (!ref.current || !frames) return;
+    const animation = ref.current.animate(
+      frames.map(([x, y, s]) => ({ transform: `translate(${x}%, ${y}%) scale(${s})` })),
+      { duration: Math.max(2, durationSec) * 1000, iterations: Infinity, easing: "linear" },
+    );
+    return () => animation.cancel();
+  }, [motion, durationSec]);
+  // object-cover: the clip fills the frame the same way (FFmpeg crops to the aspect ratio).
+  return <img ref={ref} src={src} alt={alt} className="size-full object-cover" />;
+}
+
 const SCENE_STEPS = [
   { step: "images", label: "image" },
   { step: "audios", label: "audio" },
@@ -38,7 +88,12 @@ export function SceneCard({
     (item) => item.sceneIndex === scene.index + 1
   );
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
-  useEffect(() => setDraft(toDraft(scene)), [scene]);
+  // Live motion preview, shown while the motion dropdown is being changed; a saved/refreshed scene ends it.
+  const [previewing, setPreviewing] = useState(false);
+  useEffect(() => {
+    setDraft(toDraft(scene));
+    setPreviewing(false);
+  }, [scene]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(scene));
   const set = <K extends keyof Draft>(k: K) => (v: Draft[K]) => setDraft({ ...draft, [k]: v });
 
@@ -58,7 +113,9 @@ export function SceneCard({
         <div className="grid content-start gap-2">
           {/* object-contain: media rendered at an older aspect ratio is shown whole (letterboxed), not cropped. */}
           <div className={`relative flex ${aspect.box} items-center justify-center overflow-hidden rounded-md bg-muted`}>
-            {video ? (
+            {previewing && image ? (
+              <MotionPreview src={image} alt={`Scene ${scene.index + 1} motion preview`} motion={draft.motion} durationSec={draft.durationSec} />
+            ) : video ? (
               <video src={video} poster={image} controls className="size-full bg-black object-contain" />
             ) : image ? (
               <img src={image} alt={`Scene ${scene.index + 1}`} className="size-full object-contain" />
@@ -70,8 +127,13 @@ export function SceneCard({
             )}
             {(image || video) && (
               <span className="pointer-events-none absolute top-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                {video ? "clip" : "image"} · {aspectRatio}
+                {previewing && image ? `preview · ${draft.motion}` : `${video ? "clip" : "image"} · ${aspectRatio}`}
               </span>
+            )}
+            {previewing && image && (
+              <Button size="icon-xs" variant="secondary" className="absolute top-1.5 right-1.5" aria-label="Close motion preview" onClick={() => setPreviewing(false)}>
+                <X />
+              </Button>
             )}
           </div>
           {audio && <audio src={audio} controls className="h-8 w-full" />}
@@ -96,7 +158,16 @@ export function SceneCard({
           <TextField label={`Narration (${narrationLang})`} lang={narrationLang} value={draft.narration} onChange={set("narration")} multiline rows={3} />
           <TextField label="Image prompt" value={draft.imagePrompt} onChange={set("imagePrompt")} multiline rows={2} />
           <div className="grid grid-cols-2 gap-3">
-            <SelectField label="Motion" value={draft.motion} options={MOTIONS} onChange={(v) => set("motion")(v as Scene["motion"])} />
+            <SelectField
+              label="Motion"
+              value={draft.motion}
+              options={MOTIONS}
+              onChange={(v) => {
+                set("motion")(v as Scene["motion"]);
+                setPreviewing(true);
+              }}
+              hint={image ? undefined : "Preview needs the scene image"}
+            />
             <NumberField label="Duration (sec)" min={1} max={600} step={0.5} value={Number(draft.durationSec.toFixed(1))} onChange={set("durationSec")} hint="Extended automatically if narration is longer" />
           </div>
         </div>
