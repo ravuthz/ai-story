@@ -27,6 +27,7 @@ export class SceneRepository extends BaseRepository<Scene> {
       durationSec: row.duration_sec as number,
       imagePath: (row.image_path as string | null) ?? null,
       audioPath: (row.audio_path as string | null) ?? null,
+      subtitlePath: (row.subtitle_path as string | null) ?? null,
       videoPath: (row.video_path as string | null) ?? null,
     };
   }
@@ -43,6 +44,7 @@ export class SceneRepository extends BaseRepository<Scene> {
       durationSec: ["duration_sec"],
       imagePath: ["image_path"],
       audioPath: ["audio_path"],
+      subtitlePath: ["subtitle_path"],
       videoPath: ["video_path"],
     });
   }

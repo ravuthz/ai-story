@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ImageStylePicker } from "./ImageStylePicker";
+import { SubtitleStylePicker } from "./SubtitleStylePicker";
 import { useProviders, useVoiceOptions } from "@/hooks/queries";
 import { AudioLines, Sparkles } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -144,6 +145,7 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
         value={value.imageStyle}
         onChange={(v) => set("imageStyle", v)}
       />
+      <SubtitleStylePicker value={value.subtitleStyle} onChange={(v) => set("subtitleStyle", v)} language={language} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {KINDS.map((kind) => (
           <SelectField
@@ -191,5 +193,6 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   durationSec: 6 * DEFAULT_SCENE_SEC,
   narrationLanguage: "km",
   aspectRatio: "9:16",
+  subtitleStyle: "classic",
   providers: {},
 };

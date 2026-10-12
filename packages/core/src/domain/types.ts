@@ -20,6 +20,11 @@ export type Language = z.infer<typeof LanguageSchema>;
 export const AspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 export type AspectRatio = z.infer<typeof AspectRatioSchema>;
 
+/** Burned-in subtitle looks; "none" renders clips without subtitles. */
+export const SUBTITLE_STYLES = ["none", "classic", "boxed", "yellow", "bold", "minimal"] as const;
+export const SubtitleStyleSchema = z.enum(SUBTITLE_STYLES);
+export type SubtitleStyle = z.infer<typeof SubtitleStyleSchema>;
+
 export const ProviderKindSchema = z.enum(["text", "image", "audio", "video"]);
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
 export const PROVIDER_KINDS = ProviderKindSchema.options;
@@ -42,6 +47,8 @@ const SettingsFieldsSchema = z.object({
   narrationLanguage: LanguageSchema,
   aspectRatio: AspectRatioSchema,
   imageStyle: z.string(),
+  /** Subtitles burned into clips when they render; missing = "none". */
+  subtitleStyle: SubtitleStyleSchema.optional(),
   providers: ProvidersSchema,
   voice: z.string().optional(),
   /** For providers with custom voices: narrate with a cloned or a designed voice; `voice` must be of this kind. */
@@ -129,6 +136,8 @@ export interface Scene {
   durationSec: number;
   imagePath: string | null;
   audioPath: string | null;
+  /** Subtitle cues (JSON) timed to the narration audio. */
+  subtitlePath: string | null;
   videoPath: string | null;
 }
 

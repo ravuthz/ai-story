@@ -111,4 +111,7 @@ export const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  ALTER TABLE scenes ADD COLUMN subtitle_path TEXT;
+  `,
 ];

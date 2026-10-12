@@ -181,6 +181,7 @@ export class StoryService {
       durationSec,
       imagePath: null,
       audioPath: null,
+      subtitlePath: null,
       videoPath: null,
     }));
   }

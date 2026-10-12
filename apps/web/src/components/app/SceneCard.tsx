@@ -10,6 +10,12 @@ import { CollapsibleError } from "./CollapsibleError";
 import { parseErrorItems } from "@/lib/errorUtils";
 
 const MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"].map((m) => ({ value: m, label: m }));
+const SCENE_STEPS = [
+  { step: "images", label: "image" },
+  { step: "audios", label: "audio" },
+  { step: "subtitles", label: "subtitle" },
+  { step: "videos", label: "video" },
+] as const;
 type Draft = Pick<Scene, "text" | "narration" | "imagePrompt" | "motion" | "durationSec">;
 const toDraft = ({ text, narration, imagePrompt, motion, durationSec }: Scene): Draft => ({ text, narration, imagePrompt, motion, durationSec });
 
@@ -69,10 +75,11 @@ export function SceneCard({
             )}
           </div>
           {audio && <audio src={audio} controls className="h-8 w-full" />}
-          <div className="grid grid-cols-3 gap-1">
-            {(["images", "audios", "videos"] as const).map((step) => (
-              <Button key={step} size="xs" variant="outline" disabled={rerender.isPending} onClick={() => rerender.mutate([step, ...(step !== "videos" ? (["videos"] as const) : [])])}>
-                <RefreshCw /> {step.slice(0, -1)}
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+            {SCENE_STEPS.map(({ step, label }) => (
+              // Re-running a step re-renders the clip too, so it picks up the new asset.
+              <Button key={step} size="xs" variant="outline" disabled={rerender.isPending} onClick={() => rerender.mutate(step === "videos" ? [step] : [step, "videos"])}>
+                <RefreshCw /> {label}
               </Button>
             ))}
           </div>

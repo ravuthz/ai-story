@@ -1,4 +1,4 @@
-import { Clapperboard, Download, Film, Image, Mic, PenLine, RefreshCw, Save, Scale, Trash2, Wand2 } from "lucide-react";
+import { Captions, Clapperboard, Download, Film, Image, Mic, PenLine, RefreshCw, Save, Scale, Trash2, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,17 +16,19 @@ import { href } from "@/hooks/useRoute";
 import { api, fileUrl, type RenderStep, type SettingsInput } from "@/lib/api";
 import { aspectOf } from "@/lib/aspect";
 
-const RENDER_ACTIONS: { label: string; steps?: RenderStep[]; icon: typeof Film }[] = [
+const RENDER_ACTIONS: { label: string; steps?: RenderStep[]; icon: typeof Film; hint?: string }[] = [
   { label: "Render all", icon: Wand2 },
   { label: "Images", steps: ["images"], icon: Image },
   { label: "Narration", steps: ["audios"], icon: Mic },
+  { label: "Subtitle", steps: ["subtitles"], icon: Captions, hint: "Split narration into subtitles (max 2 lines) timed to the audio; burned in when clips render" },
   { label: "Clips + final", steps: ["videos", "final"], icon: Clapperboard },
 ];
 
-type RefreshTarget = "images" | "audios" | "videos" | "clips-final";
+type RefreshTarget = "images" | "audios" | "subtitles" | "videos" | "clips-final";
 const REFRESH_TARGETS: { key: RefreshTarget; label: string; steps: RenderStep[]; hint: string }[] = [
   { key: "images", label: "Image", steps: ["images"], hint: "Regenerate scene images" },
   { key: "audios", label: "Narration", steps: ["audios"], hint: "Regenerate scene narration" },
+  { key: "subtitles", label: "Subtitle", steps: ["subtitles"], hint: "Re-time subtitles to the narration" },
   { key: "videos", label: "Video", steps: ["videos"], hint: "Regenerate scene video clips" },
   { key: "clips-final", label: "Clips + final", steps: ["videos", "final"], hint: "Regenerate clips and assemble the final video" },
 ];
@@ -56,6 +58,7 @@ export function StoryPage({ id }: { id: string }) {
   const { aspectRatio } = story.settings;
   const aspect = aspectOf(aspectRatio);
   const clipsDone = story.scenes.filter((s) => s.videoPath).length;
+  const audiosDone = story.scenes.filter((s) => s.audioPath).length;
   const refreshSteps = [...new Set(REFRESH_TARGETS.filter(({ key }) => refreshTargets.includes(key)).flatMap(({ steps }) => steps))];
   const renderBusy = busy || render.isPending || refresh.isPending;
 
@@ -120,8 +123,8 @@ export function StoryPage({ id }: { id: string }) {
             {hasScenes && (
               <div className="grid gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {RENDER_ACTIONS.map(({ label, steps, icon: Icon }) => (
-                    <Button key={label} variant={steps ? "outline" : "default"} disabled={renderBusy} onClick={() => render.mutate(steps)}>
+                  {RENDER_ACTIONS.map(({ label, steps, icon: Icon, hint }) => (
+                    <Button key={label} variant={steps ? "outline" : "default"} title={hint} disabled={renderBusy || (steps?.includes("subtitles") && audiosDone < story.scenes.length)} onClick={() => render.mutate(steps)}>
                       <Icon /> {label}
                     </Button>
                   ))}

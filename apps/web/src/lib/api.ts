@@ -2,7 +2,7 @@ import type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySetti
 
 export type { CategoryId, Job, Project, ProviderRecord, Scene, Story, StorySettings, Voice };
 export type StoryWithScenes = Story & { scenes: Scene[] };
-export type RenderStep = "images" | "audios" | "videos" | "final";
+export type RenderStep = "images" | "audios" | "videos" | "final" | "subtitles";
 export type SettingsInput = Partial<StorySettings>;
 
 export interface CategoryPools {
