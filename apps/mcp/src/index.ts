@@ -85,10 +85,10 @@ tool("get_story", "Get a story with all scenes and asset paths", StoryId, (a) =>
 
 tool(
   "generate_story",
-  "Create a unique story and generate its script synchronously. Set render=true to queue asset rendering afterwards.",
+  "Create a unique story and generate its script synchronously. Pass script (and optionally title) to split your own script into scenes instead. Set render=true to queue asset rendering afterwards.",
   CreateStorySchema.shape,
   async (a) => {
-    const draft = app.stories.createDraft(a.projectId, a.category, a.settings);
+    const draft = app.stories.createDraft(a.projectId, a.category, a.settings, undefined, a.script ? { script: a.script, title: a.title } : undefined);
     const story = await app.stories.generateScript(draft.id);
     const job = a.render ? app.jobs.enqueue("render-assets", { storyId: story.id }) : undefined;
     return { story, job };

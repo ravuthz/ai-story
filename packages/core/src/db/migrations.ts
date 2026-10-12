@@ -114,4 +114,7 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE scenes ADD COLUMN subtitle_path TEXT;
   `,
+  `
+  ALTER TABLE stories ADD COLUMN script TEXT;
+  `,
 ];

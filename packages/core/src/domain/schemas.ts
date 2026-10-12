@@ -16,13 +16,6 @@ export const RenderOptionsSchema = z.object({
   concurrency: z.number().int().min(1).max(8).optional(),
 });
 
-export const CreateStorySchema = z.object({
-  projectId: z.string(),
-  category: CategoryIdSchema,
-  settings: PartialSettingsSchema.optional(),
-  /** Also render images/audio/video after the script. */
-  render: z.boolean().optional(),
-});
 
 export const BatchSchema = z.object({
   projectId: z.string(),
@@ -59,6 +52,25 @@ export const UpdateCategorySchema = CategoryFieldsSchema.partial().extend({
   imagePrompt: z.string().trim().min(1).max(4000).optional(),
 });
 export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;
+
+/** A script written by the user, adapted into scenes instead of generating a new story. */
+export const CustomScriptSchema = z.object({
+  script: z.string().trim().min(20, "Script is too short").max(50_000),
+  title: z.string().trim().max(200).optional(),
+});
+export type CustomScript = z.infer<typeof CustomScriptSchema>;
+
+export const CreateStorySchema = z.object({
+  projectId: z.string(),
+  category: CategoryIdSchema,
+  settings: PartialSettingsSchema.optional(),
+  /** Also render images/audio/video after the script. */
+  render: z.boolean().optional(),
+  /** "Create story": your own script, split into scenes instead of a generated story. */
+  script: CustomScriptSchema.shape.script.optional(),
+  /** Title for a custom script; generated from the script when empty. */
+  title: CustomScriptSchema.shape.title,
+});
 
 export const GenerateStoryJobSchema = z.object({ storyId: z.string(), render: z.boolean().optional() });
 export const RenderJobSchema = RenderOptionsSchema.extend({ storyId: z.string() });

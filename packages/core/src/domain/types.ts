@@ -116,6 +116,8 @@ export interface Story {
   status: StoryStatus;
   blueprint: StoryBlueprint;
   settings: StorySettings;
+  /** The user's own script ("Create story"); scripts are then split from it instead of written by the AI. */
+  script: string | null;
   /** Final rendered video, relative to the storage root. */
   videoPath: string | null;
   error: string | null;

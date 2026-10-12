@@ -26,7 +26,8 @@ export const storyRoutes = (app: App) =>
     })
     .post("/", async (c) => {
       const input = await body(c, CreateStorySchema);
-      const story = app.stories.createDraft(input.projectId, input.category, input.settings);
+      const custom = input.script ? { script: input.script, title: input.title } : undefined;
+      const story = app.stories.createDraft(input.projectId, input.category, input.settings, undefined, custom);
       const job = app.jobs.enqueue("generate-story", { storyId: story.id, render: input.render });
       return c.json({ story, job }, 202);
     })

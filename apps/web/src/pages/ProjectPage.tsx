@@ -1,9 +1,10 @@
-import { Sparkles, Trash2 } from "lucide-react";
+import { FilePen, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CategoryBadge, StatusBadge } from "@/components/app/badges";
 import { SelectField } from "@/components/app/fields";
+import { CreateStoryDialog } from "@/components/app/CreateStoryDialog";
 import { NewStoryDialog } from "@/components/app/NewStoryDialog";
 import { PageHeader } from "@/components/app/Sidebar";
 import { keys, useAction, useCategories, useProject, useStories } from "@/hooks/queries";
@@ -20,6 +21,7 @@ export function ProjectPage({ id }: { id: string }) {
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [writing, setWriting] = useState(false);
   const { data } = useStories({
     projectId: id,
     category: category === "all" ? undefined : category,
@@ -43,6 +45,9 @@ export function ProjectPage({ id }: { id: string }) {
           <>
             <Button onClick={() => setCreating(true)}>
               <Sparkles /> Generate stories
+            </Button>
+            <Button variant="outline" onClick={() => setWriting(true)}>
+              <FilePen /> Create story
             </Button>
             <Button
               variant="outline"
@@ -91,7 +96,7 @@ export function ProjectPage({ id }: { id: string }) {
               <TableRow key={s.id} className="cursor-pointer" onClick={() => (window.location.hash = href.story(s.id))}>
                 <TableCell className="max-w-md">
                   <div className="truncate font-medium">{s.title}</div>
-                  <div className="truncate text-xs text-muted-foreground">{s.synopsis || s.blueprint.setting}</div>
+                  <div className="truncate text-xs text-muted-foreground">{s.synopsis || s.script || s.blueprint.setting}</div>
                 </TableCell>
                 <TableCell>
                   <CategoryBadge category={s.category} />
@@ -108,7 +113,7 @@ export function ProjectPage({ id }: { id: string }) {
             {!data?.items.length && (
               <TableRow>
                 <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                  No stories yet. Click “Generate stories”.
+                  No stories yet. Click “Generate stories”, or “Create story” to use your own script.
                 </TableCell>
               </TableRow>
             )}
@@ -127,6 +132,7 @@ export function ProjectPage({ id }: { id: string }) {
         </div>
       </div>
       <NewStoryDialog projectId={id} open={creating} onOpenChange={setCreating} />
+      <CreateStoryDialog projectId={id} open={writing} onOpenChange={setWriting} />
     </>
   );
 }

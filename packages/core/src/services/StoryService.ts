@@ -14,6 +14,7 @@ import {
   type Story,
   type StorySettings,
 } from "../domain/types";
+import type { CustomScript } from "../domain/schemas";
 import { STORY_JSON_SCHEMA, StoryPromptBuilder, type GeneratedStory } from "../prompts/StoryPromptBuilder";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
 import type { ProjectStorage } from "../storage/ProjectStorage";
@@ -38,6 +39,9 @@ const GeneratedStorySchema = z.object({
 export type StoryWithScenes = Story & { scenes: Scene[] };
 
 export type ScenePatch = Partial<Pick<Scene, "text" | "narration" | "imagePrompt" | "motion" | "durationSec">>;
+
+/** Placeholder title of a custom story until its script is split (the title then comes from the script). */
+const UNTITLED = "Untitled story";
 
 export class StoryService {
   private readonly blueprints: BlueprintGenerator;
@@ -71,8 +75,11 @@ export class StoryService {
     return this.categories.list().map((c) => ({ category: c.id, count: counts[c.id] ?? 0, capacity: c.capacity }));
   }
 
-  /** Reserves a unique blueprint and stores a draft story (no LLM call yet). */
-  createDraft(projectId: string, category: CategoryId, settings: Partial<StorySettings> = {}, reserved?: Set<string>): Story {
+  /**
+   * Reserves a unique blueprint and stores a draft story (no LLM call yet).
+   * With `custom`, the story is the user's own script ("Create story").
+   */
+  createDraft(projectId: string, category: CategoryId, settings: Partial<StorySettings> = {}, reserved?: Set<string>, custom?: CustomScript): Story {
     this.projects.getById(projectId);
     const blueprint = this.blueprints.next(this.categories.get(category), reserved);
     const id = newId();
@@ -81,13 +88,14 @@ export class StoryService {
       id,
       projectId,
       category,
-      title: `${blueprint.theme} (${blueprint.tone})`,
+      title: custom ? custom.title || UNTITLED : `${blueprint.theme} (${blueprint.tone})`,
       slug: `${category}-${id.slice(0, 8)}`,
       synopsis: "",
       moral: "",
       status: "draft",
       blueprint,
       settings: StorySettingsSchema.parse(settings),
+      script: custom?.script ?? null,
       videoPath: null,
       error: null,
       createdAt: now,
@@ -95,11 +103,20 @@ export class StoryService {
     });
   }
 
-  /** Calls the text provider and stores the script + scenes. Retries once on malformed output. */
+  /**
+   * Calls the text provider and stores the script + scenes. Retries once on malformed output.
+   * A custom story's own script is split into scenes (keeping its title) instead of writing a new story.
+   */
   async generateScript(storyId: string): Promise<StoryWithScenes> {
     const story = this.touch(storyId, { status: "generating", error: null });
     try {
-      const generated = await this.requestScript(story);
+      const category = this.categories.get(story.category);
+      const title = story.script && story.title !== UNTITLED ? story.title : undefined;
+      const prompt = story.script
+        ? this.prompts.fromScript(category, story.settings, story.script, title)
+        : this.prompts.build(category, story.blueprint, story.settings);
+      const generated = await this.requestScript(story, prompt);
+      if (title) generated.title = title;
       // The folder name is derived from the first title only, so regenerating never orphans assets.
       const isFirstScript = this.scenes.count({ story_id: story.id }) === 0;
       const slug = isFirstScript ? `${slugify(generated.title, 50)}-${story.id.slice(0, 6)}` : story.slug;
@@ -150,9 +167,8 @@ export class StoryService {
     return full;
   }
 
-  private async requestScript(story: Story): Promise<GeneratedStory> {
+  private async requestScript(story: Story, prompt: string): Promise<GeneratedStory> {
     const provider = this.providers.get("text", story.settings.providers.text);
-    const prompt = this.prompts.build(this.categories.get(story.category), story.blueprint, story.settings);
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {

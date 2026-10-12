@@ -66,6 +66,26 @@ export class StoryPromptBuilder {
     return `${body.trim()}\n\n${STORY_OUTPUT_CONTRACT}`;
   }
 
+  /** Adapts a user-written script into scenes: the author's words are the narration, nothing new is invented. */
+  fromScript(category: Category, settings: StorySettings, script: string, title?: string): string {
+    const perScene = Math.round(settings.durationSec / settings.sceneCount);
+    const language = LANGUAGE_NAMES[settings.narrationLanguage];
+    return `You are adapting a script written by the user into a narrated ${category.label.toLowerCase()} video.
+
+Split the script below into exactly ${settings.sceneCount} consecutive scenes of about ${perScene} seconds each, in the script's order.
+- "narration": the script's own words for that scene, in ${language}. Keep the author's wording; only translate faithfully if the script is written in another language. Together the scenes must cover the whole script, without adding, skipping or summarising.
+- "text": the same passage in English.
+- "imagePrompt": an English description of one vivid still image for the scene (subject, setting, lighting, camera), with no text or captions in the image. Keep recurring characters and places visually consistent.
+- "motion": one of ${MOTION_LIST}, matching the scene's mood.
+- "title": ${title ? `exactly "${title.replace(/"/g, "'")}"` : "a short title for the script"}. "synopsis": 1-2 sentences. "moral": the script's message in one sentence (empty string if none).
+
+<script>
+${script.trim()}
+</script>
+
+${STORY_OUTPUT_CONTRACT}`;
+  }
+
   imagePrompt(scenePrompt: string, style: string, category: Category): string {
     return renderTemplate(category.imagePrompt, { scenePrompt, style, categoryStyle: category.imageStyle });
   }

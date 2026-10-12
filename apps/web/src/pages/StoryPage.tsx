@@ -77,7 +77,12 @@ export function StoryPage({ id }: { id: string }) {
         }
         actions={
           <>
-            <Button variant="outline" disabled={busy || regenerate.isPending} onClick={() => regenerate.mutate()}>
+            <Button
+              variant="outline"
+              disabled={busy || regenerate.isPending}
+              title={story.script ? "Split your script into scenes again" : "Write a new script from the blueprint"}
+              onClick={() => regenerate.mutate()}
+            >
               <PenLine /> {hasScenes ? "Regenerate script" : "Generate script"}
             </Button>
             <Button
@@ -204,9 +209,14 @@ export function StoryPage({ id }: { id: string }) {
             </Card>
             <Card size="sm" className="w-full lg:w-80">
               <CardHeader>
-                <CardTitle>Unique blueprint</CardTitle>
+                <CardTitle>{story.script ? "Your script" : "Unique blueprint"}</CardTitle>
               </CardHeader>
               <CardContent>
+                {story.script ? (
+                  <p className="max-h-96 overflow-y-auto text-sm whitespace-pre-wrap" lang={story.settings.narrationLanguage}>
+                    {story.script}
+                  </p>
+                ) : (
                 <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-sm">
                   {(["theme", "setting", "protagonist", "twist", "tone"] as const).map((k) => (
                     <div key={k} className="contents">
@@ -215,6 +225,7 @@ export function StoryPage({ id }: { id: string }) {
                     </div>
                   ))}
                 </dl>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -302,3 +302,47 @@ describe("categories in the database", () => {
     expect(() => app.categoryConfigs.create({ id: "quotes", label: "Dup", pools })).toThrow(/already exists/);
   });
 });
+
+describe("custom story", () => {
+  test("a user's script is stored and split into scenes, also on regenerate", async () => {
+    const project = app.projects.create({ name: "Custom story" });
+    const script = "A small fox found a lantern in the snow. It carried the light home and shared it with every animal in the forest.";
+    const story = app.stories.createDraft(project.id, "kid-story", { sceneCount: 2, durationSec: 20, narrationLanguage: "en" }, undefined, { script, title: "The Fox Lantern" });
+    expect(story).toMatchObject({ script, title: "The Fox Lantern" });
+    const prompts: string[] = [];
+    const providers = (app.stories as unknown as { providers: { get: unknown } }).providers;
+    const original = providers.get;
+    providers.get = () => ({
+      complete: async (req: { prompt: string }) => {
+        prompts.push(req.prompt);
+        const scene = (text: string) => ({ text, narration: text, imagePrompt: "a fox in snow", motion: "zoom-in" });
+        return JSON.stringify({ title: "Ignored", synopsis: "s", moral: "", scenes: [scene("A small fox found a lantern in the snow."), scene("It carried the light home.")] });
+      },
+    });
+    try {
+      const result = await app.stories.generateScript(story.id);
+      expect(prompts[0]).toContain(script);
+      expect(prompts[0]).toContain("exactly 2 consecutive scenes");
+      expect(result.title).toBe("The Fox Lantern");
+      expect(result.status).toBe("scripted");
+      expect(result.scenes.map((s) => s.narration)).toEqual(["A small fox found a lantern in the snow.", "It carried the light home."]);
+      await app.stories.generateScript(story.id);
+      expect(prompts[1]).toContain(script);
+    } finally {
+      providers.get = original;
+    }
+  });
+
+  test("without a title, the title comes from the script", async () => {
+    const project = app.projects.create({ name: "Untitled" });
+    const story = app.stories.createDraft(project.id, "kid-story", { sceneCount: 1 }, undefined, { script: "x".repeat(30) });
+    const providers = (app.stories as unknown as { providers: { get: unknown } }).providers;
+    const original = providers.get;
+    providers.get = () => ({ complete: async () => JSON.stringify({ title: "From Script", synopsis: "", moral: "", scenes: [{ text: "t", narration: "n", imagePrompt: "p", motion: "zoom-in" }] }) });
+    try {
+      expect((await app.stories.generateScript(story.id)).title).toBe("From Script");
+    } finally {
+      providers.get = original;
+    }
+  });
+});

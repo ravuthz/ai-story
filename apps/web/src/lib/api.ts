@@ -167,7 +167,7 @@ class ApiClient {
   stories = (q: { projectId?: string; category?: string; status?: string; limit?: number; offset?: number }) =>
     this.request<Page<Story>>("GET", `/stories${this.qs(q)}`);
   story = (id: string) => this.request<StoryWithScenes>("GET", `/stories/${id}`);
-  createStory = (body: { projectId: string; category: CategoryId; settings?: SettingsInput; render?: boolean }) =>
+  createStory = (body: { projectId: string; category: CategoryId; settings?: SettingsInput; render?: boolean; script?: string; title?: string }) =>
     this.request<{ story: Story; job: Job }>("POST", "/stories", body);
   batch = (body: { projectId: string; category: CategoryId; count: number; settings?: SettingsInput; render?: boolean }) =>
     this.request<{ job: Job }>("POST", "/stories/batch", body);
