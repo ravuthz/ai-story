@@ -128,3 +128,45 @@
     @apply font-sans;
     }
 }
+/* Subtitle style previews: loop the burned-in ASS animations (packages/core/src/utils/subtitles.ts). */
+@keyframes subtitle-fade {
+  0%, 100% { opacity: 0; }
+  12%, 85% { opacity: 1; }
+}
+@keyframes subtitle-pop {
+  0% { opacity: 0; transform: scale(0.7); }
+  6% { opacity: 1; transform: scale(1.12); }
+  11%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes subtitle-slide-up {
+  0% { opacity: 0; transform: translateY(0.8em); }
+  12%, 88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-subtitle-animation] { animation: none !important; }
+}
+@keyframes subtitle-bounce {
+  0% { opacity: 0; transform: scale(0.4); }
+  5% { opacity: 1; transform: scale(1.25); }
+  8% { transform: scale(0.9); }
+  11%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes subtitle-zoom {
+  0% { opacity: 0; transform: scale(1.6); }
+  10%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes subtitle-glow {
+  0%, 100% { opacity: 0; filter: drop-shadow(0 0 1px #ffaa00); }
+  5% { opacity: 1; }
+  25%, 65% { filter: drop-shadow(0 0 6px #ffaa00); }
+  45%, 85% { opacity: 1; filter: drop-shadow(0 0 1px #ffaa00); }
+}
+@keyframes subtitle-slide-left {
+  0% { opacity: 0; transform: translateX(40%); }
+  10%, 88% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(0); }
+}

@@ -1,4 +1,4 @@
-import type { AspectRatio, Language, SubtitleStyle } from "../domain/types";
+import type { AspectRatio, Language, SubtitleFont, SubtitleStyle } from "../domain/types";
 import { DIMENSIONS } from "./media";
 
 /** A time range (seconds) where narration is audible. */
@@ -18,6 +18,8 @@ export interface SubtitleLayout {
   height: number;
   fontName: string;
   fontSize: number;
+  bold: boolean;
+  italic: boolean;
   marginH: number;
   marginV: number;
   /** Approximate visible characters that fit on one line. */
@@ -33,10 +35,15 @@ const EM_PER_CHAR: Record<Language, number> = { km: 0.62, en: 0.5 };
 const MAX_LINE_WIDTH: Record<Language, number> = { km: 30, en: 42 };
 const FONTS: Record<Language, string> = { km: "Noto Sans Khmer", en: "Arial" };
 
+/** How cues enter: karaoke sweeps each word to the primary colour, word-by-word reveals one word at a time. */
+export type SubtitleAnimation = "fade" | "pop" | "slide-up" | "karaoke" | "word-by-word" | "typewriter" | "bounce" | "zoom" | "glow" | "slide-left";
+
 /** How a subtitle style looks. Colours are ASS &HAABBGGRR (AA: 00 opaque, FF transparent). */
 export interface SubtitlePreset {
   fontScale: number;
   primary: string;
+  /** Karaoke colour of words not yet spoken (ASS SecondaryColour); missing = unused. */
+  secondary?: string;
   outlineColour: string;
   back: string;
   /** Outline width as a fraction of the font size; for a box it is the padding. */
@@ -46,6 +53,9 @@ export interface SubtitlePreset {
   box?: boolean;
   /** Distance from the bottom as a fraction of the height, before the portrait boost. */
   bottom: number;
+  animation?: SubtitleAnimation;
+  /** Extra ASS override tags on every cue (e.g. a glow blur). */
+  tags?: string;
 }
 
 export const SUBTITLE_PRESETS: Record<Exclude<SubtitleStyle, "none">, SubtitlePreset> = {
@@ -54,18 +64,49 @@ export const SUBTITLE_PRESETS: Record<Exclude<SubtitleStyle, "none">, SubtitlePr
   yellow: { fontScale: 1, primary: "&H0000E6FF", outlineColour: "&H00000000", back: "&H96000000", outline: 0.07, shadow: 1, bottom: 0.07 },
   bold: { fontScale: 1.2, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H00000000", outline: 0.12, shadow: 3, bottom: 0.2 },
   minimal: { fontScale: 0.85, primary: "&H00FFFFFF", outlineColour: "&H80000000", back: "&H80000000", outline: 0.03, shadow: 2, bottom: 0.06 },
+  fade: { fontScale: 1, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H96000000", outline: 0.07, shadow: 1, bottom: 0.07, animation: "fade" },
+  pop: { fontScale: 1.1, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H00000000", outline: 0.1, shadow: 2, bottom: 0.12, animation: "pop" },
+  "slide-up": { fontScale: 0.95, primary: "&H00FFFFFF", outlineColour: "&H64000000", back: "&H64000000", outline: 0.18, shadow: 0, box: true, bottom: 0.08, animation: "slide-up" },
+  karaoke: { fontScale: 1.05, primary: "&H0000E6FF", secondary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H96000000", outline: 0.08, shadow: 1, bottom: 0.1, animation: "karaoke" },
+  // No shadow: \ko hides a word's outline until it is spoken, but its shadow would show early.
+  "word-by-word": { fontScale: 1.1, primary: "&H00FFFFFF", secondary: "&HFF000000", outlineColour: "&H00000000", back: "&H00000000", outline: 0.1, shadow: 0, bottom: 0.12, animation: "word-by-word" },
+  neon: { fontScale: 1.05, primary: "&H00FFFF66", outlineColour: "&H00FF8800", back: "&H00000000", outline: 0.08, shadow: 0, bottom: 0.08, tags: "\\blur4" },
+  // BorderStyle 3 draws the box in the outline colour.
+  highlight: { fontScale: 0.95, primary: "&H00000000", outlineColour: "&H0000E6FF", back: "&H00000000", outline: 0.15, shadow: 0, box: true, bottom: 0.07 },
+  shadow: { fontScale: 1, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H50000000", outline: 0.02, shadow: 4, bottom: 0.07, tags: "\\blur1" },
+  "red-outline": { fontScale: 1.05, primary: "&H00FFFFFF", outlineColour: "&H000000D0", back: "&H96000000", outline: 0.1, shadow: 1, bottom: 0.08 },
+  typewriter: { fontScale: 1, primary: "&H00FFFFFF", secondary: "&HFF000000", outlineColour: "&H00000000", back: "&H00000000", outline: 0.08, shadow: 0, bottom: 0.08, animation: "typewriter" },
+  bounce: { fontScale: 1.1, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H00000000", outline: 0.1, shadow: 2, bottom: 0.12, animation: "bounce" },
+  zoom: { fontScale: 1.05, primary: "&H00FFFFFF", outlineColour: "&H00000000", back: "&H96000000", outline: 0.08, shadow: 1, bottom: 0.1, animation: "zoom" },
+  glow: { fontScale: 1.05, primary: "&H00FFFFFF", outlineColour: "&H0000AAFF", back: "&H00000000", outline: 0.08, shadow: 0, bottom: 0.08, animation: "glow" },
+  "slide-left": { fontScale: 0.95, primary: "&H00FFFFFF", outlineColour: "&H64000000", back: "&H64000000", outline: 0.18, shadow: 0, box: true, bottom: 0.08, animation: "slide-left" },
 };
 
-/** Layout for a style; "none" (or no style) measures like "classic" so cues can still be prepared. */
-export function subtitleLayout(aspectRatio: AspectRatio, language: Language, styleId: SubtitleStyle = "classic"): SubtitleLayout {
-  const style = SUBTITLE_PRESETS[styleId === "none" ? "classic" : styleId];
+/** #rrggbb → opaque ASS &H00BBGGRR. */
+export const assColour = (hex: string) => `&H00${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}`.toUpperCase();
+
+/** Layout for a style plus font overrides; "none" (or no style) measures like "classic" so cues can still be prepared. */
+export function subtitleLayout(aspectRatio: AspectRatio, language: Language, styleId: SubtitleStyle = "classic", font: SubtitleFont = {}): SubtitleLayout {
+  const preset = SUBTITLE_PRESETS[styleId === "none" ? "classic" : styleId];
+  const style = font.color ? { ...preset, primary: assColour(font.color) } : preset;
   const { width, height } = DIMENSIONS[aspectRatio];
-  const fontSize = Math.round(Math.min(width, height) * 0.058 * style.fontScale);
+  const fontSize = Math.round(Math.min(width, height) * 0.058 * style.fontScale * ((font.size ?? 100) / 100));
   const marginH = Math.round(width * 0.07);
   // Portrait videos keep subtitles above the platform's caption/controls overlay.
   const marginV = Math.round(height * (style.bottom + (height > width ? 0.07 : 0)));
   const fit = Math.floor((width - 2 * marginH) / (fontSize * EM_PER_CHAR[language]));
-  return { style, width, height, fontName: FONTS[language], fontSize, marginH, marginV, lineWidth: Math.min(fit, MAX_LINE_WIDTH[language]) };
+  return {
+    style,
+    width,
+    height,
+    fontName: font.name?.trim() || FONTS[language],
+    fontSize,
+    bold: font.bold ?? true,
+    italic: font.italic ?? false,
+    marginH,
+    marginV,
+    lineWidth: Math.min(fit, MAX_LINE_WIDTH[language]),
+  };
 }
 
 /** Visible width in characters: combining marks and Khmer subscript consonants take no extra space. */
@@ -195,9 +236,86 @@ const assTime = (sec: number) => {
 
 const assText = (line: string) => line.replace(/\\/g, "\\\\").replace(/[{}]/g, (c) => `\\${c}`);
 
+/**
+ * Splits a line into words (Intl.Segmenter, so unspaced Khmer works too); spaces and punctuation
+ * stay with the word before them.
+ */
+function words(line: string): string[] {
+  const out: string[] = [];
+  for (const { segment, isWordLike } of new Intl.Segmenter(undefined, { granularity: "word" }).segment(line)) {
+    if (isWordLike || !out.length) out.push(segment);
+    else out[out.length - 1] += segment;
+  }
+  return out;
+}
+
+/**
+ * Visible characters for the typewriter reveal. Grapheme clusters split Khmer stacks (ស + ្ត + ី),
+ * so a piece after a coeng (្) or starting with a mark joins the one before; splitting a stack breaks its shaping.
+ */
+function graphemes(line: string): string[] {
+  const out: string[] = [];
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)) {
+    if (out.length && (out.at(-1)!.endsWith("្") || /^[\p{M}្]/u.test(segment))) out[out.length - 1] += segment;
+    else out.push(segment);
+  }
+  return out;
+}
+
+/**
+ * Dialogue text for a cue: animation tags, then the lines. Karaoke / word-by-word time each word
+ * by its width over the cue (minus a short hold so the last word is read).
+ */
+function cueText(cue: SubtitleCue, layout: SubtitleLayout): string {
+  const lines = cue.lines.slice(0, MAX_LINES);
+  const ms = Math.round((cue.endSec - cue.startSec) * 1000);
+  const { width, height, marginV, fontSize } = layout;
+  switch (layout.style.animation) {
+    case "fade":
+      return `{\\fad(${Math.min(250, ms / 4) | 0},${Math.min(200, ms / 4) | 0})}${lines.map(assText).join("\\N")}`;
+    case "pop":
+      return `{\\fad(80,120)\\fscx70\\fscy70\\t(0,120,\\fscx112\\fscy112)\\t(120,220,\\fscx100\\fscy100)}${lines.map(assText).join("\\N")}`;
+    case "bounce":
+      return `{\\fad(60,120)\\fscx40\\fscy40\\t(0,140,\\fscx125\\fscy125)\\t(140,240,\\fscx90\\fscy90)\\t(240,320,\\fscx100\\fscy100)}${lines.map(assText).join("\\N")}`;
+    case "zoom":
+      return `{\\fad(200,150)\\fscx160\\fscy160\\t(0,300,0.6,\\fscx100\\fscy100)}${lines.map(assText).join("\\N")}`;
+    case "glow": {
+      // The orange glow pulses every 0.8 s for the whole cue.
+      const pulses: string[] = [];
+      for (let t = 0; t < ms; t += 800) pulses.push(`\\t(${t},${t + 400},\\blur8)\\t(${t + 400},${t + 800},\\blur2)`);
+      return `{\\fad(150,150)\\blur2${pulses.join("")}}${lines.map(assText).join("\\N")}`;
+    }
+    case "slide-left": {
+      const x = width / 2;
+      const y = height - marginV;
+      return `{\\fad(150,120)\\move(${x + Math.round(width * 0.25)},${y},${x},${y},0,250)}${lines.map(assText).join("\\N")}`;
+    }
+    case "slide-up": {
+      // Alignment 2: the position is the bottom centre of the text block.
+      const x = width / 2;
+      const y = height - marginV;
+      return `{\\fad(150,120)\\move(${x},${y + Math.round(fontSize * 0.8)},${x},${y},0,250)}${lines.map(assText).join("\\N")}`;
+    }
+    case "karaoke":
+    case "word-by-word":
+    case "typewriter": {
+      const tag = layout.style.animation === "karaoke" ? "kf" : "ko";
+      const perLine = lines.map(layout.style.animation === "typewriter" ? graphemes : words);
+      const total = perLine.flat().reduce((sum, w) => sum + Math.max(1, textWidth(w.trim())), 0);
+      // Centiseconds, leaving the cue's last 15% (≤0.6 s) with every word shown.
+      const budget = Math.max(0, Math.round((ms - Math.min(600, ms * 0.15)) / 10));
+      return perLine
+        .map((ws) => ws.map((w) => `{\\${tag}${Math.round((Math.max(1, textWidth(w.trim())) / total) * budget)}}${assText(w)}`).join(""))
+        .join("\\N");
+    }
+    default:
+      return lines.map(assText).join("\\N");
+  }
+}
+
 /** An ASS script with manual line breaks only (WrapStyle 2), so a cue never exceeds two lines. */
 export function buildAss(cues: SubtitleCue[], layout: SubtitleLayout): string {
-  const { style, width, height, fontName, fontSize, marginH, marginV } = layout;
+  const { style, width, height, fontName, fontSize, bold, italic, marginH, marginV } = layout;
   const outline = Math.max(style.box ? 4 : 1, Math.round(fontSize * style.outline));
   return [
     "[Script Info]",
@@ -209,13 +327,13 @@ export function buildAss(cues: SubtitleCue[], layout: SubtitleLayout): string {
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Default,${fontName},${fontSize},${style.primary},&H000000FF,${style.outlineColour},${style.back},-1,0,0,0,100,100,0,0,${style.box ? 3 : 1},${outline},${style.shadow},2,${marginH},${marginH},${marginV},1`,
+    `Style: Default,${fontName},${fontSize},${style.primary},${style.secondary ?? "&H000000FF"},${style.outlineColour},${style.back},${bold ? -1 : 0},${italic ? -1 : 0},0,0,100,100,0,0,${style.box ? 3 : 1},${outline},${style.shadow},2,${marginH},${marginH},${marginV},1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ...cues
       .filter((c) => c.endSec > c.startSec)
-      .map((c) => `Dialogue: 0,${assTime(c.startSec)},${assTime(c.endSec)},Default,,0,0,0,,${c.lines.slice(0, MAX_LINES).map(assText).join("\\N")}`),
+      .map((c) => `Dialogue: 0,${assTime(c.startSec)},${assTime(c.endSec)},Default,,0,0,0,,${style.tags ? `{${style.tags}}` : ""}${cueText(c, layout)}`),
     "",
   ].join("\n");
 }

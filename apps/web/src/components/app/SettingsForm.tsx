@@ -145,7 +145,13 @@ export function SettingsForm({ value, onChange }: { value: SettingsInput; onChan
         value={value.imageStyle}
         onChange={(v) => set("imageStyle", v)}
       />
-      <SubtitleStylePicker value={value.subtitleStyle} onChange={(v) => set("subtitleStyle", v)} language={language} />
+      <SubtitleStylePicker
+        value={value.subtitleStyle}
+        onChange={(v) => set("subtitleStyle", v)}
+        font={value.subtitleFont}
+        onFontChange={(v) => set("subtitleFont", v)}
+        language={language}
+      />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {KINDS.map((kind) => (
           <SelectField

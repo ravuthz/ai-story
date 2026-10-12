@@ -60,4 +60,40 @@ describe("subtitles", () => {
     expect(bold.lineWidth).toBeLessThan(classic.lineWidth);
     expect(buildAss([], subtitleLayout("16:9", "en", "boxed"))).toMatch(/,3,\d+,0,2,/);
   });
+
+  test("font overrides change family, size, colour and weight", () => {
+    const base = subtitleLayout("16:9", "en", "classic");
+    const custom = subtitleLayout("16:9", "en", "classic", { name: "Impact", size: 150, color: "#ff8000", bold: false, italic: true });
+    expect(custom.fontSize).toBeCloseTo(base.fontSize * 1.5, -1);
+    expect(custom.lineWidth).toBeLessThan(base.lineWidth);
+    expect(buildAss([], custom)).toContain("Style: Default,Impact," + custom.fontSize + ",&H000080FF,&H000000FF,&H00000000,&H96000000,0,-1,");
+    expect(buildAss([], base)).toContain(",-1,0,0,0,100,100,");
+  });
+
+  test("animated styles add ASS animation tags", () => {
+    const cue = { startSec: 0, endSec: 2, lines: ["Once upon", "a time"] };
+    const dialogue = (style: Parameters<typeof subtitleLayout>[2]) => buildAss([cue], subtitleLayout("9:16", "en", style)).split("\n").find((l) => l.startsWith("Dialogue"))!;
+    expect(dialogue("fade")).toContain("{\\fad(");
+    expect(dialogue("pop")).toContain("\\t(0,120,");
+    expect(dialogue("slide-up")).toContain("\\move(540,");
+    const karaoke = dialogue("karaoke");
+    expect(karaoke.match(/\\kf\d+/g)).toHaveLength(4);
+    expect(karaoke).toContain("\\N");
+    // Word durations fill the cue minus the closing hold (2 s - 0.3 s = 170 cs).
+    const total = [...dialogue("word-by-word").matchAll(/\\ko(\d+)/g)].reduce((sum, m) => sum + Number(m[1]), 0);
+    expect(total).toBeGreaterThanOrEqual(168);
+    expect(total).toBeLessThanOrEqual(172);
+  });
+
+  test("newer styles: static tags, typewriter per character, pulsing glow", () => {
+    const cue = { startSec: 0, endSec: 2, lines: ["Hi you"] };
+    const dialogue = (style: Parameters<typeof subtitleLayout>[2]) => buildAss([cue], subtitleLayout("16:9", "en", style)).split("\n").find((l) => l.startsWith("Dialogue"))!;
+    expect(dialogue("neon")).toContain(",,{\\blur4}Hi you");
+    expect(dialogue("highlight")).toBe(dialogue("classic"));
+    expect(dialogue("typewriter").match(/\\ko\d+/g)).toHaveLength(6);
+    expect(dialogue("glow").match(/\\t\(/g)).toHaveLength(6);
+    expect(dialogue("slide-left")).toContain("\\move(1440,");
+    expect(dialogue("bounce")).toContain("\\fscx40");
+    expect(dialogue("zoom")).toContain("\\fscx160");
+  });
 });

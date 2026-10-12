@@ -21,9 +21,25 @@ export const AspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 export type AspectRatio = z.infer<typeof AspectRatioSchema>;
 
 /** Burned-in subtitle looks; "none" renders clips without subtitles. */
-export const SUBTITLE_STYLES = ["none", "classic", "boxed", "yellow", "bold", "minimal"] as const;
+export const STATIC_SUBTITLE_STYLES = ["none", "classic", "boxed", "yellow", "bold", "minimal", "neon", "highlight", "shadow", "red-outline"] as const;
+export const ANIMATED_SUBTITLE_STYLES = ["fade", "pop", "slide-up", "karaoke", "word-by-word", "typewriter", "bounce", "zoom", "glow", "slide-left"] as const;
+export const SUBTITLE_STYLES = [...STATIC_SUBTITLE_STYLES, ...ANIMATED_SUBTITLE_STYLES] as const;
 export const SubtitleStyleSchema = z.enum(SUBTITLE_STYLES);
 export type SubtitleStyle = z.infer<typeof SubtitleStyleSchema>;
+
+/** Overrides on top of the subtitle style; anything missing keeps the style's own look. */
+export const SubtitleFontSchema = z.object({
+  /** Font family installed on the server (fontconfig name). Missing: Noto Sans Khmer / Arial by language. */
+  name: z.string().trim().max(80).regex(/^[^,{}\\]*$/, "no commas, braces or backslashes").optional(),
+  /** Size as a percentage of the style's own size. */
+  size: z.number().int().min(50).max(200).optional(),
+  /** Text colour as #rrggbb (for karaoke: the highlight colour). */
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  /** Missing: bold (as all styles were before fonts could be changed). */
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+});
+export type SubtitleFont = z.infer<typeof SubtitleFontSchema>;
 
 export const ProviderKindSchema = z.enum(["text", "image", "audio", "video"]);
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
@@ -49,6 +65,7 @@ const SettingsFieldsSchema = z.object({
   imageStyle: z.string(),
   /** Subtitles burned into clips when they render; missing = "none". */
   subtitleStyle: SubtitleStyleSchema.optional(),
+  subtitleFont: SubtitleFontSchema.optional(),
   providers: ProvidersSchema,
   voice: z.string().optional(),
   /** For providers with custom voices: narrate with a cloned or a designed voice; `voice` must be of this kind. */

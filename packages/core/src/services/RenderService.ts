@@ -202,10 +202,10 @@ export class RenderService {
   /** Stored cues, or null when missing or built from other text / another line width (style or aspect changed). */
   private async loadSubtitles(story: Story, scene: Scene): Promise<SceneSubtitles | null> {
     if (!scene.subtitlePath) return null;
-    const { narrationLanguage, aspectRatio, subtitleStyle } = story.settings;
+    const { narrationLanguage, aspectRatio, subtitleStyle, subtitleFont } = story.settings;
     try {
       const data = (await Bun.file(this.storage.toAbsolute(scene.subtitlePath)).json()) as SceneSubtitles;
-      const fresh = data.text === this.subtitleText(story, scene) && data.lineWidth === subtitleLayout(aspectRatio, narrationLanguage, subtitleStyle).lineWidth;
+      const fresh = data.text === this.subtitleText(story, scene) && data.lineWidth === subtitleLayout(aspectRatio, narrationLanguage, subtitleStyle, subtitleFont).lineWidth;
       return fresh ? data : null;
     } catch {
       return null;
@@ -215,9 +215,9 @@ export class RenderService {
   /** Splits the narration into ≤2-line cues timed to the speech heard in the scene's narration audio. */
   private async writeSubtitles(story: Story, scene: Scene, outPath: string): Promise<SceneSubtitles> {
     if (!scene.audioPath) throw new Error(`Scene ${scene.index + 1} has no narration yet`);
-    const { narrationLanguage: language, aspectRatio, subtitleStyle } = story.settings;
+    const { narrationLanguage: language, aspectRatio, subtitleStyle, subtitleFont } = story.settings;
     const text = this.subtitleText(story, scene);
-    const { lineWidth } = subtitleLayout(aspectRatio, language, subtitleStyle);
+    const { lineWidth } = subtitleLayout(aspectRatio, language, subtitleStyle, subtitleFont);
     const spans = await Ffmpeg.speechSpans(this.storage.toAbsolute(scene.audioPath));
     const data: SceneSubtitles = { text, lineWidth, cues: timeCues(chunkSubtitles(text, language, lineWidth), spans) };
     await writeBytes(outPath, new TextEncoder().encode(JSON.stringify(data, null, 2)));
@@ -228,12 +228,12 @@ export class RenderService {
   /** Burns the scene's subtitles into its rendered clip, preparing them first if missing or stale. */
   private async burnSubtitles(story: Story, scene: Scene, clipPath: string, tempo: number, jsonPath: string): Promise<void> {
     if (!scene.audioPath) return;
-    const { narrationLanguage, aspectRatio, subtitleStyle } = story.settings;
+    const { narrationLanguage, aspectRatio, subtitleStyle, subtitleFont } = story.settings;
     const data = (await this.loadSubtitles(story, scene)) ?? (await this.writeSubtitles(story, scene, jsonPath));
     const cues = fitCuesToClip(data.cues, tempo, await Ffmpeg.probeDuration(clipPath), Ffmpeg.FADE_SEC);
     if (!cues.length) return;
     const assPath = clipPath.replace(/\.mp4$/, ".ass");
-    await writeFile(assPath, buildAss(cues, subtitleLayout(aspectRatio, narrationLanguage, subtitleStyle)));
+    await writeFile(assPath, buildAss(cues, subtitleLayout(aspectRatio, narrationLanguage, subtitleStyle, subtitleFont)));
     await Ffmpeg.burnSubtitles(clipPath, assPath);
   }
 }
