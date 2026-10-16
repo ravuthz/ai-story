@@ -18,7 +18,15 @@ const VISUAL_STYLES = [
   },
   {
     group: "Animation",
-    styles: ["3D Animation", "3D Cartoon", "2D Cartoon", "Anime", "Storybook", "Watercolor", "Comic Book"],
+    styles: ["3D Animation", "3D Cartoon", "Pixar Style", "2D Cartoon", "Hand Drawn 2D Animation", "Anime", "Chibi", "Clay Stop Motion", "Storybook", "Watercolor", "Comic Book"],
+  },
+  {
+    group: "Illustration",
+    styles: ["Traditional Chinese Ink Painting", "Paper Cut Collage", "Colored Pencil Illustration", "Painterly Folklore"],
+  },
+  {
+    group: "Stickman",
+    styles: ["Classic Stickman", "Doodle Stickman", "Colorful Stickman", "Neon Stickman"],
   },
 ] as const;
 

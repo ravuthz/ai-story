@@ -18,6 +18,9 @@ const AVAILABLE_PREVIEWS: Record<string, true> = {
   "soft-romantic-cinematic": true, "soft-watercolor": true, "storybook": true, "sunrise-light": true,
   "symbolic-composition": true, "temple-murals": true, "traditional-khmer-painting-style": true,
   "ultra-realistic": true, "vibrant": true, "warm-bokeh": true, "watercolor": true, "whiteboard": true, "wide-shots": true,
+  "hand-drawn-2d-animation": true, "chibi": true, "clay-stop-motion": true,
+  "traditional-chinese-ink-painting": true, "paper-cut-collage": true,
+  "colored-pencil-illustration": true, "painterly-folklore": true,
 };
 /**
  * Visual artwork preview for an image style.
@@ -40,6 +43,43 @@ export function StylePreviewImage({ style = "", className = "" }: StylePreviewIm
         decoding="async"
         className={className}
       />
+    );
+  }
+
+  if (["classic stickman", "doodle stickman", "colorful stickman", "neon stickman"].includes(s)) {
+    const isDoodle = s === "doodle stickman";
+    const isColorful = s === "colorful stickman";
+    const isNeon = s === "neon stickman";
+    const background = isNeon ? "#10102a" : isColorful ? "#fff5d6" : isDoodle ? "#f9f3e7" : "#ffffff";
+    const ink = isNeon ? "#67e8f9" : isColorful ? "#2563eb" : "#171717";
+
+    return (
+      <svg viewBox="0 0 160 120" className={className} xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+        <rect width="160" height="120" fill={background} />
+        {isDoodle && (
+          <path d="M0 30H160 M0 60H160 M0 90H160 M30 0V120 M60 0V120 M90 0V120 M120 0V120 M150 0V120" stroke="#cbd5e1" strokeWidth="0.7" opacity="0.65" />
+        )}
+        {isColorful && (
+          <>
+            <circle cx="27" cy="29" r="12" fill="#fbbf24" />
+            <path d="M0 101 Q35 82 72 101 T160 98 V120 H0Z" fill="#86efac" />
+            <circle cx="128" cy="32" r="8" fill="#f9a8d4" />
+          </>
+        )}
+        {isNeon && (
+          <>
+            <path d="M0 93H160 M16 0V120 M144 0V120" stroke="#7c3aed" strokeWidth="1" opacity="0.55" />
+            <circle cx="80" cy="62" r="49" fill="none" stroke="#a855f7" strokeWidth="2" opacity="0.55" />
+          </>
+        )}
+        <g fill="none" stroke={ink} strokeWidth={isDoodle ? 3 : 4} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="80" cy="31" r="13" fill={isColorful ? "#fcd34d" : "none"} />
+          <path d={isDoodle ? "M79 45 Q84 60 79 79 M80 54 Q64 50 51 63 M81 56 Q99 52 109 43 M80 79 Q70 90 60 106 M80 79 Q93 89 104 105" : "M80 44V78 M80 55L52 69 M80 55L108 47 M80 78L58 105 M80 78L104 105"} />
+        </g>
+        {isDoodle && <path d="M40 17Q54 8 65 19 M109 78Q124 71 136 82" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />}
+        {isNeon && <circle cx="80" cy="31" r="18" fill="none" stroke="#22d3ee" strokeWidth="1" opacity="0.55" />}
+        {isColorful && <path d="M46 63L39 69 M110 45L119 39" stroke="#f97316" strokeWidth="4" strokeLinecap="round" />}
+      </svg>
     );
   }
 
