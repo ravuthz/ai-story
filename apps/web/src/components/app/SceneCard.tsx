@@ -140,7 +140,7 @@ export function SceneCard({
             )}
           </div>
           {audio && <audio src={audio} controls className="h-8 w-full" />}
-          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-1">
             {SCENE_STEPS.map(({ step, label }) => (
               // Re-running a step re-renders the clip too, so it picks up the new asset.
               <Button key={step} size="xs" variant="outline" disabled={rerender.isPending} onClick={() => rerender.mutate(step === "videos" ? [step] : [step, "videos"])}>
@@ -196,7 +196,7 @@ export function SceneCard({
               }}
               hint={image ? undefined : "Preview needs the scene image"}
             />
-            <NumberField label="Duration (sec)" min={1} max={600} step={0.5} value={Number(draft.durationSec.toFixed(1))} onChange={set("durationSec")} hint="Extended automatically if narration is longer" />
+            <NumberField label="Duration (sec)" min={1} max={600} step={0.5} value={Number(draft.durationSec.toFixed(1))} onChange={set("durationSec")} hint="Extended automatically if narration is longer" hintPlacement="top" />
           </div>
         </div>
       </CardContent>

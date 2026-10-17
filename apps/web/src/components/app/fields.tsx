@@ -11,12 +11,29 @@ export interface Option {
   disabled?: boolean;
 }
 
-export function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  hintPlacement = "below",
+  className,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** "top" puts the hint on the label row, right-aligned; "below" keeps it under the control. */
+  hintPlacement?: "below" | "top";
+  className?: string;
+  children: ReactNode;
+}) {
+  const hintOnTop = !!hint && hintPlacement === "top";
   return (
     <div className={cn("grid gap-1.5", className)}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex items-start justify-between gap-2">
+        <Label className="text-xs text-muted-foreground">{label}</Label>
+        {hintOnTop && <p className="text-right text-xs text-muted-foreground">{hint}</p>}
+      </div>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && !hintOnTop && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -64,6 +81,7 @@ export function NumberField({
   max,
   step = 1,
   hint,
+  hintPlacement,
   disabled,
 }: {
   label: string;
@@ -73,10 +91,11 @@ export function NumberField({
   max?: number;
   step?: number;
   hint?: string;
+  hintPlacement?: "below" | "top";
   disabled?: boolean;
 }) {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} hintPlacement={hintPlacement}>
       <Input type="number" value={value ?? ""} min={min} max={max} step={step} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} />
     </Field>
   );
