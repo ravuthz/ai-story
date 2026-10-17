@@ -2,6 +2,8 @@ import { ImageIcon, RefreshCw, Save, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { keys, useAction } from "@/hooks/queries";
 import { api, fileUrl, type RenderStep, type Scene, type StorySettings } from "@/lib/api";
 import { aspectOf } from "@/lib/aspect";
@@ -90,6 +92,7 @@ export function SceneCard({
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
   // Live motion preview, shown while the motion dropdown is being changed; a saved/refreshed scene ends it.
   const [previewing, setPreviewing] = useState(false);
+  const [storyTab, setStoryTab] = useState<"en" | "km">("en");
   useEffect(() => {
     setDraft(toDraft(scene));
     setPreviewing(false);
@@ -154,8 +157,33 @@ export function SceneCard({
             </Button>
           </div>
           {sceneErrorItem && <CollapsibleError error={sceneErrorItem.message} />}
-          <TextField label="Story text (English)" value={draft.text} onChange={set("text")} multiline rows={2} />
-          <TextField label={`Narration (${narrationLang})`} lang={narrationLang} value={draft.narration} onChange={set("narration")} multiline rows={3} />
+          <Tabs value={storyTab} onValueChange={(v) => setStoryTab(v as "en" | "km")} className="gap-2 max-h-[390px]">
+            <TabsList className="w-full">
+              <TabsTrigger value="km">Story Text Khmer</TabsTrigger>
+              <TabsTrigger value="en">Story Text English</TabsTrigger>
+            </TabsList>
+            <TabsContent value="km" className="max-h-[300px] overflow-y-auto">
+              <Textarea
+                aria-label="Story Text Khmer"
+                lang={narrationLang}
+                value={draft.narration ?? ""}
+                onChange={(e) => set("narration")(e.target.value)}
+                placeholder="Story text in Khmer…"
+                rows={3}
+                className="max-h-[300px] overflow-y-auto"
+              />
+            </TabsContent>
+            <TabsContent value="en" className="max-h-[300px] overflow-y-auto">
+              <Textarea
+                aria-label="Story Text English"
+                value={draft.text ?? ""}
+                onChange={(e) => set("text")(e.target.value)}
+                placeholder="Story text in English…"
+                rows={3}
+                className="max-h-[300px] overflow-y-auto"
+              />
+            </TabsContent>
+          </Tabs>
           <TextField label="Image prompt" value={draft.imagePrompt} onChange={set("imagePrompt")} multiline rows={2} />
           <div className="grid grid-cols-2 gap-3">
             <SelectField
